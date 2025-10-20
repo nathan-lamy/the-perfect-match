@@ -1,7 +1,7 @@
 /**
  * Authenticate on BJColle.
  */
-use reqwest::{self, header::HeaderValue, redirect::Policy};
+use reqwest::{self, redirect::Policy};
 
 pub async fn request_session() -> Result<String, Box<dyn std::error::Error>> {
     let url = "https://bjcolle.fr/acces.php";
@@ -19,7 +19,7 @@ pub async fn login(
     username: &str,
     password: &str,
     session_id: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let url = "https://bjcolle.fr/acces.php";
 
     let client = reqwest::Client::builder()
@@ -37,30 +37,12 @@ pub async fn login(
         .send()
         .await?;
 
-    // Get session ID from cookies
-    let session_id: Vec<String> = response
-        .headers()
-        .get_all("set-cookie")
-        .iter()
-        .filter_map(|value: &HeaderValue| value.to_str().ok())
-        .filter_map(|s| {
-            // Get the part before the first semicolon
-            let first_part = s.split(';').next()?.trim();
-
-            // Only keep "bjid" or "bjp"
-            if first_part.starts_with("bjid=") || first_part.starts_with("bjp=") {
-                Some(first_part.to_string())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    if session_id.is_empty() {
-        return Err("Invalid credentials".into());
+    // Check if login failed (non-2xx response)
+    if !(response.status() == reqwest::StatusCode::FOUND) {
+        return Err(format!("Login failed: HTTP {}", response.status()).into());
     }
 
-    Ok(session_id.join("; "))
+    Ok(())
 }
 
 pub async fn authenticate(
@@ -68,6 +50,6 @@ pub async fn authenticate(
     password: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let session_id = request_session().await?;
-    let session_cookies = login(username, password, &session_id).await?;
-    Ok(session_cookies)
+    login(username, password, &session_id).await?;
+    Ok(session_id)
 }

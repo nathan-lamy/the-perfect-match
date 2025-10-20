@@ -1,10 +1,12 @@
 mod auth;
 mod session;
+mod students;
 
 use auth::{auth_exists, read_auth, save_auth};
 use session::authenticate;
+use students::{fetch_students_table, Student};
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+/* === AUTH === */
 #[tauri::command(async)]
 async fn authenticate_and_save(
     app_handle: tauri::AppHandle,
@@ -38,6 +40,18 @@ fn check_auth_exists(app_handle: tauri::AppHandle) -> bool {
     auth_exists(&app_handle)
 }
 
+/* === STUDENTS === */
+#[tauri::command(async)]
+async fn get_students(cookie: String) -> Result<Vec<Student>, String> {
+    println!("Getting students with cookie: {}", cookie);
+    // Discipline 1 is for Maths
+    let students_data = fetch_students_table(&cookie, 1)
+        .await
+        .map_err(|e| format!("Failed to fetch students: {}", e))?;
+    let students = students_data.students;
+    Ok(students)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -45,7 +59,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             check_auth_exists,
             authenticate_and_save,
-            load_session
+            load_session,
+            get_students
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

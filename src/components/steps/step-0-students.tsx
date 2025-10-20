@@ -15,6 +15,8 @@ import { StudentList } from "@/components/student-list";
 import { RestrictionManager } from "@/components/restriction-manager";
 import { GroupManager } from "@/components/group-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { invoke } from "@tauri-apps/api/core";
+import { loadSession } from "@/lib/utils";
 
 interface Step0StudentsProps {
   students: Student[];
@@ -38,22 +40,21 @@ export function Step0Students({
   const [loading, setLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
 
+  // TODO: ADD JSON STORE FOR USER, CONSTRAINTS, GROUPS
+  // TODO: REMOVE DEBUG RUST LOGS
   const handleLoadStudents = async () => {
     setLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    console.log(loadSession());
+    const students = await invoke<{firstname: string, lastname: string }[]>("get_students", {
+      cookie: loadSession() || "",
+    })
 
-    // Mock data
-    const mockStudents: Student[] = [
-      { id: "1", name: "Alice Dupont", email: "alice@example.com" },
-      { id: "2", name: "Bob Martin", email: "bob@example.com" },
-      { id: "3", name: "Claire Bernard", email: "claire@example.com" },
-      { id: "4", name: "David Petit", email: "david@example.com" },
-      { id: "5", name: "Emma Dubois", email: "emma@example.com" },
-    ];
-
-    setStudents(mockStudents);
-    setStudentsLoaded(true);
+    setStudents(students.map(({ firstname, lastname }, i) => ({
+      name: firstname + " " + lastname,
+      // TODO: Better ID
+      id: i.toString()
+    })));
+    if (students.length) setStudentsLoaded(true);
     setLoading(false);
   };
 
