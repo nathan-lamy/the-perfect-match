@@ -87,7 +87,7 @@ export function StepManager() {
       <div className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">The perfect match</h1>
+            <h1 className="text-2xl font-bold">The Perfect Match 🗓️</h1>
             {currentStep !== 0 && (
               <Button
                 variant="outline"

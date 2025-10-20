@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+import { invoke } from "@tauri-apps/api/core";
+
 interface LoginFormProps {
   onLogin: () => void;
 }
@@ -22,9 +24,15 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple validation - in production, this would call an API
     if (username && password) {
-      onLogin();
+      invoke("authenticate_and_save", { username, password })
+        .then((session) => {
+          console.log("Authenticated, session:", session);
+          onLogin();
+        })
+        .catch((err) => {
+          alert(`Échec de l'authentification: ${err}`);
+        });
     }
   };
 
