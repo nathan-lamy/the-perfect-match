@@ -34,13 +34,11 @@ export const DownloadTimetableButton = ({
         const student = students.find((s) => s.id === a.studentId);
         const slot = slots.find((s) => s.id === a.slotId);
         return {
-          "Student ID": student?.id || "",
-          "Student Name": student?.name || "",
-          Teacher: slot?.teacher || "Unassigned",
+          "Prénom": student?.first_name || "",
+          "Nom": student?.last_name || "",
+          "Colleur": slot?.teacher || "Unassigned",
           Date: slot?.date || "",
-          "Start Time": slot?.start_hour || "",
-          "End Time": slot?.end_hour || "",
-          Subject: slot?.subject || "",
+          "Heure": (slot?.start_hour || "") + " - " + (slot?.end_hour || ""),
         };
       });
 

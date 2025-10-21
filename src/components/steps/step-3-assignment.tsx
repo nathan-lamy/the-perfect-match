@@ -67,7 +67,9 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
           }))
         );
         setRestrictions(restrictions);
+        setActiveRestrictions(restrictions.map((r) => r.id));
         setStudentGroups(groups);
+        setSelectedGroup(groups[0]?.id || "");
       }
     );
 

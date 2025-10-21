@@ -165,6 +165,12 @@ pub async fn fetch_colles(
                         .last()
                         .unwrap_or(&subject_part)
                         .to_string();
+                    // If subject starts with 00, remove it
+                    let subject = if subject.starts_with("00") {
+                        subject.trim_start_matches("00").to_string()
+                    } else {
+                        subject
+                    };
                     let teacher_part = after_colon[..salle_pos].trim().to_string();
 
                     // Clean up teacher prefix (optional)
