@@ -2,6 +2,7 @@ mod auth;
 mod session;
 mod store;
 mod students;
+mod past_colles;
 
 use std::vec;
 
@@ -9,6 +10,7 @@ use auth::{auth_exists, read_auth, save_auth};
 use session::authenticate;
 use store::*;
 use students::fetch_students_table;
+use past_colles::fetch_last_week_colles;
 
 /* === AUTH === */
 #[tauri::command(async)]
@@ -47,7 +49,6 @@ fn check_auth_exists(app_handle: tauri::AppHandle) -> bool {
 /* === STUDENTS === */
 #[tauri::command(async)]
 async fn get_students(app: tauri::AppHandle, cookie: String) -> Result<Vec<Student>, String> {
-    println!("Getting students with cookie: {}", cookie);
     // Discipline 1 is for Maths
     let students_data = fetch_students_table(&cookie, 1)
         .await
@@ -75,7 +76,8 @@ pub fn run() {
             add_group,
             update_group,
             delete_group,
-            load_groups
+            load_groups,
+            fetch_last_week_colles
 
         ])
         .run(tauri::generate_context!())

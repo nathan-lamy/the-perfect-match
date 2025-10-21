@@ -17,3 +17,15 @@ export function loadSession(): string | null {
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
+// Cache storage utilities
+export const CACHE_KEY = "bjcolle_cache_";
+export function saveCache(key: string, data: any) {
+  localStorage.setItem(CACHE_KEY + key, JSON.stringify(data));
+}
+export function loadCache<T>(key: string): T | null {
+  const item = localStorage.getItem(CACHE_KEY + key);
+  return item ? (JSON.parse(item) as T) : null;
+}
+export function clearCache(key: string) {
+  localStorage.removeItem(CACHE_KEY + key);
+}

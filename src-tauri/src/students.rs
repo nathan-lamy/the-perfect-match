@@ -119,6 +119,8 @@ pub async fn fetch_students_table(cookie: &str, disc: i32) -> Result<StudentsDat
         }
     }
 
+    println!("Fetched {} students", students.len());
+
 
     Ok(StudentsData {
         column_titles,

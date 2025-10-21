@@ -80,7 +80,7 @@ export function Step2FutureColles({
     <Card>
       <CardHeader>
         <CardTitle>
-          Étape 2 : Récupérer les créneaux de colles à venir
+          Récupérer les créneaux de colles à venir
         </CardTitle>
         <CardDescription>
           Chargez les créneaux disponibles pour l'attribution

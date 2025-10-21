@@ -20,10 +20,8 @@ export interface StudentGroup {
 }
 
 export interface PastColle {
-  id: string
-  studentId: string
-  subject: string
-  date: string
+  name: string
+  teachers: string[]
 }
 
 export interface FutureSlot {
