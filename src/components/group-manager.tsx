@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import type { StudentGroup, Student } from "@/types";
 import { Plus, Trash2, Edit2, X, Check, Users } from "lucide-react";
 import { StudentCombobox } from "@/components/student-combobox";
+import { invoke } from "@tauri-apps/api/core";
 
 interface GroupManagerProps {
   groups: StudentGroup[];
@@ -15,7 +16,6 @@ interface GroupManagerProps {
   students: Student[];
 }
 
-// TODO: GROUPS PERSISTENCE WITH TAURI
 export function GroupManager({
   groups,
   setGroups,
@@ -25,13 +25,20 @@ export function GroupManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    studentIds: [] as string[],
+    student_ids: [] as string[],
   });
 
-  const handleSubmit = () => {
-    if (!formData.name || formData.studentIds.length === 0) return;
+  const handleSubmit = async () => {
+    if (!formData.name || formData.student_ids.length === 0) return;
 
     if (editingId) {
+      await invoke("update_group", {
+        id: editingId,
+        name: formData.name,
+        studentIds: formData.student_ids,
+      }).catch((err) => {
+        console.error("Failed to update group:", err);
+      });
       setGroups(
         groups.map((g) =>
           g.id === editingId ? { ...formData, id: editingId } : g
@@ -39,14 +46,14 @@ export function GroupManager({
       );
       setEditingId(null);
     } else {
-      const newGroup: StudentGroup = {
-        ...formData,
-        id: Date.now().toString(),
-      };
+      const newGroup: StudentGroup = await invoke("add_group", {
+        name: formData.name,
+        studentIds: formData.student_ids,
+      });
       setGroups([...groups, newGroup]);
     }
 
-    setFormData({ name: "", studentIds: [] });
+    setFormData({ name: "", student_ids: [] });
     setIsAdding(false);
   };
 
@@ -56,12 +63,15 @@ export function GroupManager({
     setIsAdding(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    await invoke("delete_group", { id }).catch((err) => {
+      console.error("Failed to delete group:", err);
+    });
     setGroups(groups.filter((g) => g.id !== id));
   };
 
   const handleCancel = () => {
-    setFormData({ name: "", studentIds: [] });
+    setFormData({ name: "", student_ids: [] });
     setIsAdding(false);
     setEditingId(null);
   };
@@ -69,9 +79,9 @@ export function GroupManager({
   const toggleStudent = (studentId: string) => {
     setFormData((prev) => ({
       ...prev,
-      studentIds: prev.studentIds.includes(studentId)
-        ? prev.studentIds.filter((id) => id !== studentId)
-        : [...prev.studentIds, studentId],
+      student_ids: prev.student_ids.includes(studentId)
+        ? prev.student_ids.filter((id) => id !== studentId)
+        : [...prev.student_ids, studentId],
     }));
   };
 
@@ -105,7 +115,7 @@ export function GroupManager({
               <Label>Élèves du groupe</Label>
               <StudentCombobox
                 students={students}
-                selectedStudentIds={formData.studentIds}
+                selectedStudentIds={formData.student_ids}
                 onStudentToggle={toggleStudent}
               />
             </div>
@@ -135,7 +145,7 @@ export function GroupManager({
                 <div>
                   <p className="font-medium">{group.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {group.studentIds.length} élève(s)
+                    {group.student_ids.length} élève(s)
                   </p>
                 </div>
               </div>

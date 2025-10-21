@@ -47,12 +47,13 @@ export function Step0Students({
       cookie: loadSession() || "",
     });
     const restrictions = await invoke<Restriction[]>("load_restrictions");
-    console.log("Loaded restrictions:", restrictions);
     const groups = await invoke<StudentGroup[]>("load_groups");
 
     setRestrictions(restrictions);
     setStudentGroups(groups);
-    setStudents(students.map((s) => ({ ...s, name: s.first_name + " " + s.last_name })));
+    setStudents(
+      students.map((s) => ({ ...s, name: s.first_name + " " + s.last_name }))
+    );
 
     if (students.length) setStudentsLoaded(true);
     setLoading(false);
@@ -62,16 +63,25 @@ export function Step0Students({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Étape 0 : Récupérer les élèves</CardTitle>
+          <CardTitle>Récupérer les élèves</CardTitle>
           <CardDescription>
-            Chargez la liste des élèves depuis le système
+            Chargez la liste des élèves, les groupes et les restrictions
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="">
           {!studentsLoaded ? (
-            <LoadingButton loading={loading} onClick={handleLoadStudents}>
-              Charger les élèves
-            </LoadingButton>
+            <div>
+              <LoadingButton loading={loading} onClick={handleLoadStudents}>
+                Charger les élèves
+              </LoadingButton>
+              <Button
+                variant="ghost"
+                onClick={onNext}
+                className="text-muted-foreground"
+              >
+                Passer cette étape
+              </Button>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">

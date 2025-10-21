@@ -16,7 +16,7 @@ export interface Restriction {
 export interface StudentGroup {
   id: string
   name: string
-  studentIds: string[]
+  student_ids: string[]
 }
 
 export interface PastColle {
