@@ -55,6 +55,7 @@ export function RestrictionManager({
         startTime: formData.startTime,
         endTime: formData.endTime,
         studentIds: formData.studentIds,
+        day: formData.day,
       }).catch((err) => {
         console.error("Failed to add restriction:", err);
       });

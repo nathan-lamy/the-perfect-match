@@ -8,10 +8,10 @@ import type {
 import { compareTimes, getDayOfWeek } from "./utils";
 import { minWeightAssign } from "munkres-algorithm";
 
-const RESTRICTION_PENALTY = 12_000_000_000; // Large penalty to avoid conflicts
+const RESTRICTION_PENALTY = 12_000_000; // Large penalty to avoid conflicts
 const LAST_WEEK_PENALTY_BASE = 6_000_000; // Base penalty for last week conflicts
 const SAME_DAY_PENALTY = 3_000; // Penalty for same day assignments
-const TOTAL_COLLES_WEIGHT = 10; // Weight factor for total colles
+const TOTAL_COLLES_WEIGHT = 50; // Weight factor for total colles
 
 const MAX_SCORE = RESTRICTION_PENALTY;
 const MAX_RETRIES = 10;
@@ -35,7 +35,9 @@ const makeComputeFunction = (
     }
 
     // Last week penalty (if same teacher and subject)
-    const pastColle = pastColles.find((pc) => pc.name === student.name);
+    const pastColle = pastColles.find(
+      (pc) => pc.name === student.last_name + " " + student.first_name
+    );
     if (pastColle) {
       if (pastColle.teachers.includes(slot.teacher)) {
         score += LAST_WEEK_PENALTY_BASE;
@@ -66,8 +68,8 @@ const makeComputeFunction = (
     }
 
     // Noise (to randomize among equal scores)
-    // Noise range: 0 to 3 * WEIGHT
-    const noiseUpperBound = 3 * TOTAL_COLLES_WEIGHT * 2 ** noiseFactor;
+    // Noise range: 0 to WEIGHT
+    const noiseUpperBound = TOTAL_COLLES_WEIGHT * 2 ** noiseFactor;
     const noise = Math.floor(Math.random() * noiseUpperBound);
     score += noise;
 
@@ -149,6 +151,7 @@ const getAssignments = (
     const { assignments: a1, assignmentsWeight: weight1 } =
       minWeightAssign(matrix1);
 
+    console.log(weight1, MAX_SCORE);
     if (weight1 < MAX_SCORE) {
       const fa1 = formatAssignments(students, slots, a1);
       const matrix2 = makeMatrix2(
@@ -159,6 +162,7 @@ const getAssignments = (
       const { assignments: a2, assignmentsWeight: weight2 } =
         minWeightAssign(matrix2);
 
+      console.log(weight2, MAX_SCORE);
       if (weight2 < MAX_SCORE) {
         return [
           {
@@ -174,6 +178,11 @@ const getAssignments = (
     }
 
     noiseFactor += 1;
+    console.log(
+      `Retrying assignment with increased noise factor ${noiseFactor} (attempt ${
+        attempt + 1
+      }/${MAX_RETRIES})`
+    );
   }
 };
 
@@ -281,6 +290,16 @@ export const computeAssignments = (
     physColles,
     physResult.assignments as number[]
   );
+
+  const missingMath = students.filter(
+    (sq) => !mathAssignments.some((a) => a.studentId === sq.id)
+  );
+  const missingPhys = physStudents.filter(
+    (sq) => !physAssignments.some((a) => a.studentId === sq.id)
+  );
+  console.log("Missing math assignments:", missingMath);
+  console.log("Missing physics assignments:", missingPhys);
+
   return {
     math: {
       assignments: mathAssignments.filter((a) => a.slotId !== null),
