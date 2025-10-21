@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import type { Restriction, Student } from "@/types";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { StudentCombobox } from "@/components/student-combobox";
+import { invoke } from "@tauri-apps/api/core";
 
 interface RestrictionManagerProps {
   restrictions: Restriction[];
@@ -27,22 +28,34 @@ export function RestrictionManager({
     studentIds: [] as string[],
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name || !formData.startTime || !formData.endTime) return;
 
     if (editingId) {
-      setRestrictions(
-        restrictions.map((r) =>
-          r.id === editingId ? { ...formData, id: editingId } : r
-        )
-      );
+      const restriction = await invoke<Restriction>("update_restriction", {
+        id: editingId,
+        activityName: formData.name,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        studentIds: formData.studentIds,
+      }).catch((err) => {
+        console.error("Failed to update restriction:", err);
+      });
+      if (restriction)
+        setRestrictions(
+          restrictions.map((r) => (r.id === editingId ? restriction : r))
+        );
       setEditingId(null);
     } else {
-      const newRestriction: Restriction = {
-        ...formData,
-        id: Date.now().toString(),
-      };
-      setRestrictions([...restrictions, newRestriction]);
+      const restriction = await invoke<Restriction>("add_restriction", {
+        activityName: formData.name,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        studentIds: formData.studentIds,
+      }).catch((err) => {
+        console.error("Failed to add restriction:", err);
+      });
+      if (restriction) setRestrictions([...restrictions, restriction]);
     }
 
     setFormData({ name: "", startTime: "", endTime: "", studentIds: [] });
@@ -50,12 +63,20 @@ export function RestrictionManager({
   };
 
   const handleEdit = (restriction: Restriction) => {
-    setFormData(restriction);
+    setFormData({
+      name: restriction.activity_name,
+      startTime: restriction.start_time,
+      endTime: restriction.end_time,
+      studentIds: restriction.student_ids,
+    });
     setEditingId(restriction.id);
     setIsAdding(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    await invoke("delete_restriction", { id }).catch((err) => {
+      console.error("Failed to delete restriction:", err);
+    });
     setRestrictions(restrictions.filter((r) => r.id !== id));
   };
 
@@ -150,10 +171,10 @@ export function RestrictionManager({
               className="flex items-center justify-between p-3 rounded-lg border border-border"
             >
               <div className="flex-1">
-                <p className="font-medium">{restriction.name}</p>
+                <p className="font-medium">{restriction.activity_name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {restriction.startTime} - {restriction.endTime} •{" "}
-                  {restriction.studentIds.length} élève(s)
+                  {restriction.start_time} - {restriction.end_time} •{" "}
+                  {restriction.student_ids.length} élève(s)
                 </p>
               </div>
               <div className="flex gap-2">

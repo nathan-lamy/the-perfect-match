@@ -40,20 +40,20 @@ export function Step0Students({
   const [loading, setLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
 
-  // TODO: ADD JSON STORE FOR USER, CONSTRAINTS, GROUPS
-  // TODO: REMOVE DEBUG RUST LOGS
   const handleLoadStudents = async () => {
     setLoading(true);
-    console.log(loadSession());
-    const students = await invoke<{firstname: string, lastname: string }[]>("get_students", {
-      cookie: loadSession() || "",
-    })
 
-    setStudents(students.map(({ firstname, lastname }, i) => ({
-      name: firstname + " " + lastname,
-      // TODO: Better ID
-      id: i.toString()
-    })));
+    const students = await invoke<Student[]>("get_students", {
+      cookie: loadSession() || "",
+    });
+    const restrictions = await invoke<Restriction[]>("load_restrictions");
+    console.log("Loaded restrictions:", restrictions);
+    const groups = await invoke<StudentGroup[]>("load_groups");
+
+    setRestrictions(restrictions);
+    setStudentGroups(groups);
+    setStudents(students.map((s) => ({ ...s, name: s.first_name + " " + s.last_name })));
+
     if (students.length) setStudentsLoaded(true);
     setLoading(false);
   };

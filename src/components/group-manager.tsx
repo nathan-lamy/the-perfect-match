@@ -15,6 +15,7 @@ interface GroupManagerProps {
   students: Student[];
 }
 
+// TODO: GROUPS PERSISTENCE WITH TAURI
 export function GroupManager({
   groups,
   setGroups,

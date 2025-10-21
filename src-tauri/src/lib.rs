@@ -1,10 +1,14 @@
 mod auth;
 mod session;
+mod store;
 mod students;
+
+use std::vec;
 
 use auth::{auth_exists, read_auth, save_auth};
 use session::authenticate;
-use students::{fetch_students_table, Student};
+use store::*;
+use students::fetch_students_table;
 
 /* === AUTH === */
 #[tauri::command(async)]
@@ -42,14 +46,16 @@ fn check_auth_exists(app_handle: tauri::AppHandle) -> bool {
 
 /* === STUDENTS === */
 #[tauri::command(async)]
-async fn get_students(cookie: String) -> Result<Vec<Student>, String> {
+async fn get_students(app: tauri::AppHandle, cookie: String) -> Result<Vec<Student>, String> {
     println!("Getting students with cookie: {}", cookie);
     // Discipline 1 is for Maths
     let students_data = fetch_students_table(&cookie, 1)
         .await
         .map_err(|e| format!("Failed to fetch students: {}", e))?;
+    // Save students to local store
     let students = students_data.students;
-    Ok(students)
+    let saved_students = save_students(app, students)?;
+    Ok(saved_students)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -60,7 +66,17 @@ pub fn run() {
             check_auth_exists,
             authenticate_and_save,
             load_session,
-            get_students
+            get_students,
+            load_students,
+            add_restriction,
+            update_restriction,
+            delete_restriction,
+            load_restrictions,
+            add_group,
+            update_group,
+            delete_group,
+            load_groups
+
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

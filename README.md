@@ -1,7 +1,3 @@
-# Tauri + React + Typescript
-
-This template should help get you started developing with Tauri, React and Typescript in Vite.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+Problèmes connus :
+- Pour les selecteurs de date, vous devez réécrir manuellement la date dans le champ de texte pour qu'elle soit prise en compte (même si elle est affichée correctement).
+Sinon vous ne pourrez pas enregistrer la restriction.

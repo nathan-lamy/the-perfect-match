@@ -13,7 +13,7 @@ export function StudentList({ students }: StudentListProps) {
         <CardTitle>Liste des élèves</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {students.map((student) => (
             <div
               key={student.id}
@@ -23,12 +23,10 @@ export function StudentList({ students }: StudentListProps) {
                 <User className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="font-medium">{student.name}</p>
-                {student.email && (
-                  <p className="text-sm text-muted-foreground">
-                    {student.email}
-                  </p>
-                )}
+                <p className="font-medium">{student.first_name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {student.last_name}
+                </p>
               </div>
             </div>
           ))}

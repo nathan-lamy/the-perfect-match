@@ -1,15 +1,16 @@
 export interface Student {
   id: string
+  first_name: string
+  last_name: string
   name: string
-  email?: string
 }
 
 export interface Restriction {
   id: string
-  name: string
-  startTime: string
-  endTime: string
-  studentIds: string[]
+  activity_name: string
+  start_time: string
+  end_time: string
+  student_ids: string[]
 }
 
 export interface StudentGroup {
