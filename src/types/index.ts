@@ -26,10 +26,11 @@ export interface PastColle {
 
 export interface FutureSlot {
   id: string
+  teacher: string
+  date: string // Format: YYYY/MM/DD
+  start_hour: string // Format: HH:MM
+  end_hour: string // Format: HH:MM
   subject: string
-  date: string
-  time: string
-  available: boolean
 }
 
 export interface Assignment {

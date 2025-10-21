@@ -1,16 +1,18 @@
 mod auth;
+mod future_colles;
+mod past_colles;
 mod session;
 mod store;
 mod students;
-mod past_colles;
 
 use std::vec;
 
 use auth::{auth_exists, read_auth, save_auth};
+use future_colles::fetch_future_colles;
+use past_colles::fetch_last_week_colles;
 use session::authenticate;
 use store::*;
 use students::fetch_students_table;
-use past_colles::fetch_last_week_colles;
 
 /* === AUTH === */
 #[tauri::command(async)]
@@ -77,8 +79,8 @@ pub fn run() {
             update_group,
             delete_group,
             load_groups,
-            fetch_last_week_colles
-
+            fetch_last_week_colles,
+            fetch_future_colles
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

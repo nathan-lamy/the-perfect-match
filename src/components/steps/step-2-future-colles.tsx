@@ -10,7 +10,12 @@ import {
 } from "@/components/ui/card";
 import { LoadingButton } from "@/components/loading-button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "lucide-react";
 import type { FutureSlot } from "@/types";
+import { invoke } from "@tauri-apps/api/core";
+import { loadSession, saveCache } from "@/lib/utils";
 
 interface Step2FutureCollesProps {
   futureSlots: FutureSlot[];
@@ -27,66 +32,56 @@ export function Step2FutureColles({
 }: Step2FutureCollesProps) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [startDate, setStartDate] = useState("");
 
   const handleLoad = async () => {
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const slots = await invoke<FutureSlot[]>("fetch_future_colles", {
+      date: startDate,
+      cookie: loadSession(),
+    }).catch((err) => {
+      console.error("Failed to fetch future slots:", err);
+      return [];
+    });
 
-    // Mock data
-    const mockSlots: FutureSlot[] = [
-      {
-        id: "1",
-        subject: "Mathématiques",
-        date: "2025-01-15",
-        time: "09:00",
-        available: true,
-      },
-      {
-        id: "2",
-        subject: "Mathématiques",
-        date: "2025-01-15",
-        time: "10:00",
-        available: true,
-      },
-      {
-        id: "3",
-        subject: "Physique",
-        date: "2025-01-16",
-        time: "09:00",
-        available: true,
-      },
-      {
-        id: "4",
-        subject: "Physique",
-        date: "2025-01-16",
-        time: "10:00",
-        available: true,
-      },
-      {
-        id: "5",
-        subject: "Chimie",
-        date: "2025-01-17",
-        time: "09:00",
-        available: true,
-      },
-    ];
-
-    setFutureSlots(mockSlots);
-    setLoaded(true);
+    setFutureSlots(slots);
+    if (slots.length) {
+      setLoaded(true);
+      saveCache("future_slots", slots);
+    }
     setLoading(false);
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          Récupérer les créneaux de colles à venir
-        </CardTitle>
+        <CardTitle>Récupérer les créneaux de colles à venir</CardTitle>
         <CardDescription>
           Chargez les créneaux disponibles pour l'attribution
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="week-start-date" className="text-sm font-medium">
+            Premier jour de la semaine de colles à venir
+          </Label>
+          <div className="relative max-w-xs">
+            <Input
+              id="week-start-date"
+              type="text"
+              placeholder="JJ/MM"
+              className="pr-10"
+              disabled={loaded}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Sélectionnez le lundi de la semaine de colle à venir
+          </p>
+        </div>
+
         {!loaded ? (
           <div className="flex gap-2">
             <LoadingButton loading={loading} onClick={handleLoad}>
