@@ -30,7 +30,7 @@ export function Step2FutureColles({ onNext, onSkip }: Step2FutureCollesProps) {
 
   const handleLoad = async () => {
     setLoading(true);
-    const { slots, url } = await invoke<{ slots: FutureSlot[]; url: string }>(
+    const { colles: slots, url } = await invoke<{ colles: FutureSlot[]; url: string }>(
       "fetch_future_colles",
       {
         date: startDate,
@@ -38,7 +38,7 @@ export function Step2FutureColles({ onNext, onSkip }: Step2FutureCollesProps) {
       }
     ).catch((err) => {
       console.error("Failed to fetch future slots:", err);
-      return { slots: [], url: "" };
+      return { colles: [], url: "" };
     });
 
     setFutureSlots(slots);
@@ -46,6 +46,7 @@ export function Step2FutureColles({ onNext, onSkip }: Step2FutureCollesProps) {
       setLoaded(true);
       saveCache("future_slots", slots);
       saveCache("future_slots_url", url);
+      saveCache("future_slots_date", startDate);
     }
     setLoading(false);
   };

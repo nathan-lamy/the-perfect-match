@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -8,13 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type {
-  Student,
-  Restriction,
-  StudentGroup,
-  FutureSlot,
-  PastColle,
-} from "@/types";
+import type { Student, Restriction, StudentGroup, FutureSlot } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -25,29 +19,54 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { loadCache } from "@/lib/utils";
+import { invoke } from "@tauri-apps/api/core";
 
 interface Step3AssignmentProps {
-  students: Student[];
-  restrictions: Restriction[];
-  studentGroups: StudentGroup[];
-  futureSlots: FutureSlot[];
-  pastColles: PastColle[];
   onNext: () => void;
 }
 
-export function Step3Assignment({
-  students,
-  restrictions,
-  studentGroups,
-  futureSlots,
-  pastColles,
-  onNext,
-}: Step3AssignmentProps) {
-  const [activeRestrictions, setActiveRestrictions] = useState<string[]>(
-    restrictions.map((r) => r.id)
-  );
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
+export function Step3Assignment({ onNext }: Step3AssignmentProps) {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [restrictions, setRestrictions] = useState<Restriction[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
+  const [futureSlots, setFutureSlots] = useState<FutureSlot[]>([]);
+  const [pastColles, setPastColles] = useState<FutureSlot[]>([]);
+  const [startDate, setStartDate] = useState("");
+
+  const [activeRestrictions, setActiveRestrictions] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+
+  // Load initial data from backend and cache
+  useEffect(() => {
+    const loadedStudents = invoke<Student[]>("load_students").catch(() => []);
+    const loadedRestrictions = invoke<Restriction[]>("load_restrictions").catch(
+      () => []
+    );
+    const loadedGroups = invoke<StudentGroup[]>("load_groups").catch(() => []);
+
+    const cachedSlots = loadCache<FutureSlot[]>("future_slots") || [];
+    const cachedPastColles = loadCache<FutureSlot[]>("last_week") || [];
+    const cachedDate = loadCache<string>("future_slots_date") || "";
+
+    Promise.all([loadedStudents, loadedRestrictions, loadedGroups]).then(
+      ([students, restrictions, groups]) => {
+        setStudents(
+          students.map((s) => ({
+            ...s,
+            name: s.first_name + " " + s.last_name,
+          }))
+        );
+        setRestrictions(restrictions);
+        setStudentGroups(groups);
+      }
+    );
+
+    setFutureSlots(cachedSlots);
+    setStartDate(cachedDate);
+    setPastColles(cachedPastColles);
+  }, []);
+
   const [calculated, setCalculated] = useState(false);
   const [assignmentStats, setAssignmentStats] = useState({
     assigned: 0,
@@ -55,8 +74,6 @@ export function Step3Assignment({
     score: 0,
   });
   const [error, setError] = useState<string>("");
-
-  const subjects = Array.from(new Set(futureSlots.map((s) => s.subject)));
 
   const toggleRestriction = (id: string) => {
     setActiveRestrictions((prev) =>
@@ -66,40 +83,6 @@ export function Step3Assignment({
 
   const handleCalculate = () => {
     setError("");
-
-    if (!selectedSubject) {
-      setError("Veuillez sélectionner une matière");
-      return;
-    }
-
-    const availableSlots = futureSlots.filter(
-      (s) => s.subject === selectedSubject && s.available
-    );
-
-    let targetStudents = students;
-    if (selectedGroup !== "all") {
-      const group = studentGroups.find((g) => g.id === selectedGroup);
-      if (group) {
-        targetStudents = students.filter((s) =>
-          group.studentIds.includes(s.id)
-        );
-      }
-    }
-
-    if (targetStudents.length > availableSlots.length) {
-      setError(
-        `Erreur : ${targetStudents.length} élèves pour seulement ${availableSlots.length} créneaux disponibles`
-      );
-      return;
-    }
-
-    // Simple assignment simulation
-    const score = Math.random() * 100;
-    setAssignmentStats({
-      assigned: Math.min(targetStudents.length, availableSlots.length),
-      students: targetStudents.length,
-      score: Math.round(score),
-    });
     setCalculated(true);
   };
 
@@ -134,8 +117,8 @@ export function Step3Assignment({
                       htmlFor={`restriction-${restriction.id}`}
                       className="cursor-pointer"
                     >
-                      {restriction.name} ({restriction.startTime} -{" "}
-                      {restriction.endTime})
+                      {restriction.activity_name} ({restriction.start_time} -{" "}
+                      {restriction.end_time})
                     </Label>
                   </div>
                 ))}
@@ -145,24 +128,15 @@ export function Step3Assignment({
 
           {/* Subject selection */}
           <div className="space-y-2">
-            <Label>Matière</Label>
-            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionnez une matière" />
-              </SelectTrigger>
-              <SelectContent>
-                {subjects.map((subject) => (
-                  <SelectItem key={subject} value={subject}>
-                    {subject}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Date de début des colles à venir :</Label>
+            <p className="text-sm text-muted-foreground">
+              {startDate || "Non défini"}
+            </p>
           </div>
 
           {/* Group selection */}
           <div className="space-y-2">
-            <Label>Groupe d'élèves (optionnel)</Label>
+            <Label>Groupe d'élèves pour les colles de Physique :</Label>
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
               <SelectTrigger>
                 <SelectValue />
