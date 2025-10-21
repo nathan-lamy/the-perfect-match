@@ -4,6 +4,7 @@ mod past_colles;
 mod session;
 mod store;
 mod students;
+mod create_colle;
 
 use std::vec;
 
@@ -13,6 +14,7 @@ use past_colles::fetch_last_week_colles;
 use session::authenticate;
 use store::*;
 use students::fetch_students_table;
+use create_colle::{post_timetable_dashboard, post_timetable_choice_students};
 
 use crate::students::StudentsData;
 
@@ -89,7 +91,9 @@ pub fn run() {
             delete_group,
             load_groups,
             fetch_last_week_colles,
-            fetch_future_colles
+            fetch_future_colles,
+            post_timetable_dashboard,
+            post_timetable_choice_students,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

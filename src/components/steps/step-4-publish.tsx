@@ -11,6 +11,8 @@ import {
 import { LoadingButton } from "@/components/loading-button";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { loadSession } from "@/lib/utils";
 
 interface Step4PublishProps {
   onComplete: () => void;
@@ -22,6 +24,20 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
 
   const handlePublish = async () => {
     setLoading(true);
+
+    // TODO: Remove test
+    const url = await invoke<string>("post_timetable_dashboard", {
+      checkboxId: "COCHER_E1",
+      cookie: loadSession(),
+      from: "https://bjcolle.fr/timetable_dashboard_period.php?page=2"
+    });
+    console.log("Dashboard URL:", url);
+    await invoke("post_timetable_choice_students", {
+      url: "https://bjcolle.fr/" + url,
+      cookie: loadSession(),
+      studentId: "E30"  // TODO: Remove test
+    })
+
     await new Promise((resolve) => setTimeout(resolve, 2000));
     setPublished(true);
     setLoading(false);
