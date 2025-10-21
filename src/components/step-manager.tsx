@@ -8,21 +8,9 @@ import { Step2FutureColles } from "@/components/steps/step-2-future-colles";
 import { Step3Assignment } from "@/components/steps/step-3-assignment";
 import { Step4Publish } from "@/components/steps/step-4-publish";
 import { Button } from "@/components/ui/button";
-import type {
-  Student,
-  Restriction,
-  StudentGroup,
-  PastColle,
-  FutureSlot,
-} from "@/types";
 
 export function StepManager() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [restrictions, setRestrictions] = useState<Restriction[]>([]);
-  const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
-  const [pastColles, setPastColles] = useState<PastColle[]>([]);
-  const [futureSlots, setFutureSlots] = useState<FutureSlot[]>([]);
 
   const steps = [
     "Élèves",
@@ -37,20 +25,12 @@ export function StepManager() {
       case 0:
         return (
           <Step0Students
-            students={students}
-            setStudents={setStudents}
-            restrictions={restrictions}
-            setRestrictions={setRestrictions}
-            studentGroups={studentGroups}
-            setStudentGroups={setStudentGroups}
             onNext={() => setCurrentStep(1)}
           />
         );
       case 1:
         return (
           <Step1PastColles
-            pastColles={pastColles}
-            setPastColles={setPastColles}
             onNext={() => setCurrentStep(2)}
             onSkip={() => setCurrentStep(2)}
           />
@@ -58,8 +38,6 @@ export function StepManager() {
       case 2:
         return (
           <Step2FutureColles
-            futureSlots={futureSlots}
-            setFutureSlots={setFutureSlots}
             onNext={() => setCurrentStep(3)}
             onSkip={() => setCurrentStep(3)}
           />
@@ -67,11 +45,6 @@ export function StepManager() {
       case 3:
         return (
           <Step3Assignment
-            students={students}
-            restrictions={restrictions}
-            studentGroups={studentGroups}
-            futureSlots={futureSlots}
-            pastColles={pastColles}
             onNext={() => setCurrentStep(4)}
           />
         );

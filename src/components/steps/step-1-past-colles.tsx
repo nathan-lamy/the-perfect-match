@@ -16,27 +16,21 @@ import { invoke } from "@tauri-apps/api/core";
 import { loadSession, saveCache } from "@/lib/utils";
 
 interface Step1PastCollesProps {
-  pastColles: PastColle[];
-  setPastColles: (colles: PastColle[]) => void;
   onNext: () => void;
   onSkip: () => void;
 }
 
-export function Step1PastColles({
-  pastColles,
-  setPastColles,
-  onNext,
-  onSkip,
-}: Step1PastCollesProps) {
+export function Step1PastColles({ onNext, onSkip }: Step1PastCollesProps) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [startDate, setStartDate] = useState("");
+  const [pastColles, setPastColles] = useState<PastColle[]>([]);
 
   const handleLoad = async () => {
     setLoading(true);
     const colles = await invoke<PastColle[]>("fetch_last_week_colles", {
       date: startDate,
-      cookie: loadSession()
+      cookie: loadSession(),
     }).catch((err) => {
       console.error("Failed to fetch past colles:", err);
       return [];

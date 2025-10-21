@@ -19,26 +19,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { loadSession } from "@/lib/utils";
 
 interface Step0StudentsProps {
-  students: Student[];
-  setStudents: (students: Student[]) => void;
-  restrictions: Restriction[];
-  setRestrictions: (restrictions: Restriction[]) => void;
-  studentGroups: StudentGroup[];
-  setStudentGroups: (groups: StudentGroup[]) => void;
   onNext: () => void;
 }
 
-export function Step0Students({
-  students,
-  setStudents,
-  restrictions,
-  setRestrictions,
-  studentGroups,
-  setStudentGroups,
-  onNext,
-}: Step0StudentsProps) {
+export function Step0Students({ onNext }: Step0StudentsProps) {
   const [loading, setLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [restrictions, setRestrictions] = useState<Restriction[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
 
   const handleLoadStudents = async () => {
     setLoading(true);

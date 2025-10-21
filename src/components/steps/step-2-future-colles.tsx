@@ -18,28 +18,25 @@ import { invoke } from "@tauri-apps/api/core";
 import { loadSession, saveCache } from "@/lib/utils";
 
 interface Step2FutureCollesProps {
-  futureSlots: FutureSlot[];
-  setFutureSlots: (slots: FutureSlot[]) => void;
   onNext: () => void;
   onSkip: () => void;
 }
 
-export function Step2FutureColles({
-  futureSlots,
-  setFutureSlots,
-  onNext,
-  onSkip,
-}: Step2FutureCollesProps) {
+export function Step2FutureColles({ onNext, onSkip }: Step2FutureCollesProps) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [startDate, setStartDate] = useState("");
+  const [futureSlots, setFutureSlots] = useState<FutureSlot[]>([]);
 
   const handleLoad = async () => {
     setLoading(true);
-    const { slots, url } = await invoke<{ slots: FutureSlot[], url: string }>("fetch_future_colles", {
-      date: startDate,
-      cookie: loadSession(),
-    }).catch((err) => {
+    const { slots, url } = await invoke<{ slots: FutureSlot[]; url: string }>(
+      "fetch_future_colles",
+      {
+        date: startDate,
+        cookie: loadSession(),
+      }
+    ).catch((err) => {
       console.error("Failed to fetch future slots:", err);
       return { slots: [], url: "" };
     });
