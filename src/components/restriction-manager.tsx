@@ -7,6 +7,7 @@ import type { Restriction, Student } from "@/types";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { StudentCombobox } from "@/components/student-combobox";
 import { invoke } from "@tauri-apps/api/core";
+import { Select, SelectContent, SelectValue, SelectTrigger, SelectItem } from "@/components/ui/select";
 
 interface RestrictionManagerProps {
   restrictions: Restriction[];
@@ -26,6 +27,7 @@ export function RestrictionManager({
     startTime: "",
     endTime: "",
     studentIds: [] as string[],
+    day: "",
   });
 
   const handleSubmit = async () => {
@@ -38,6 +40,7 @@ export function RestrictionManager({
         startTime: formData.startTime,
         endTime: formData.endTime,
         studentIds: formData.studentIds,
+        day: formData.day,
       }).catch((err) => {
         console.error("Failed to update restriction:", err);
       });
@@ -58,7 +61,13 @@ export function RestrictionManager({
       if (restriction) setRestrictions([...restrictions, restriction]);
     }
 
-    setFormData({ name: "", startTime: "", endTime: "", studentIds: [] });
+    setFormData({
+      name: "",
+      startTime: "",
+      endTime: "",
+      studentIds: [],
+      day: "",
+    });
     setIsAdding(false);
   };
 
@@ -68,6 +77,7 @@ export function RestrictionManager({
       startTime: restriction.start_time,
       endTime: restriction.end_time,
       studentIds: restriction.student_ids,
+      day: restriction.day,
     });
     setEditingId(restriction.id);
     setIsAdding(true);
@@ -81,7 +91,13 @@ export function RestrictionManager({
   };
 
   const handleCancel = () => {
-    setFormData({ name: "", startTime: "", endTime: "", studentIds: [] });
+    setFormData({
+      name: "",
+      startTime: "",
+      endTime: "",
+      studentIds: [],
+      day: "",
+    });
     setIsAdding(false);
     setEditingId(null);
   };
@@ -144,6 +160,27 @@ export function RestrictionManager({
               </div>
             </div>
             <div className="space-y-2">
+              <Label>Jour de la semaine</Label>
+              <Select
+                value={formData.day}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, day: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Monday">Lundi</SelectItem>
+                  <SelectItem value="Tuesday">Mardi</SelectItem>
+                  <SelectItem value="Wednesday">Mercredi</SelectItem>
+                  <SelectItem value="Thursday">Jeudi</SelectItem>
+                  <SelectItem value="Friday">Vendredi</SelectItem>
+                  <SelectItem value="Saturday">Samedi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Élèves concernés</Label>
               <StudentCombobox
                 students={students}
@@ -173,7 +210,7 @@ export function RestrictionManager({
               <div className="flex-1">
                 <p className="font-medium">{restriction.activity_name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {restriction.start_time} - {restriction.end_time} •{" "}
+                  {restriction.day} {restriction.start_time} - {restriction.end_time} •{" "}
                   {restriction.student_ids.length} élève(s)
                 </p>
               </div>

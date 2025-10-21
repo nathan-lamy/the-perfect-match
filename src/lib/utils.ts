@@ -29,3 +29,19 @@ export function loadCache<T>(key: string): T | null {
 export function clearCache(key: string) {
   localStorage.removeItem(CACHE_KEY + key);
 }
+
+// Time utilities
+export function compareTimes(t1: string, t2: string) {
+  const [h1, m1] = t1.split(':').map(Number);
+  const [h2, m2] = t2.split(':').map(Number);
+
+  const minutes1 = h1 * 60 + m1;
+  const minutes2 = h2 * 60 + m2;
+
+  return minutes1 - minutes2;
+}
+
+export function getDayOfWeek(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { weekday: 'long' });
+}

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { LoadingButton } from "@/components/loading-button";
 import { Button } from "@/components/ui/button";
-import type { Student, Restriction, StudentGroup } from "@/types";
+import type { Student, Restriction, StudentGroup, StudentsData } from "@/types";
 import { StudentList } from "@/components/student-list";
 import { RestrictionManager } from "@/components/restriction-manager";
 import { GroupManager } from "@/components/group-manager";
@@ -32,8 +32,9 @@ export function Step0Students({ onNext }: Step0StudentsProps) {
   const handleLoadStudents = async () => {
     setLoading(true);
 
-    const students = await invoke<Student[]>("get_students", {
+    const { students } = await invoke<StudentsData>("get_students", {
       cookie: loadSession() || "",
+      disc: 1,  // Discipline 1 is for Maths
     });
     const restrictions = await invoke<Restriction[]>("load_restrictions");
     const groups = await invoke<StudentGroup[]>("load_groups");
@@ -44,7 +45,9 @@ export function Step0Students({ onNext }: Step0StudentsProps) {
       students.map((s) => ({ ...s, name: s.first_name + " " + s.last_name }))
     );
 
-    if (students.length) setStudentsLoaded(true);
+    if (students.length) {
+      setStudentsLoaded(true);
+    }
     setLoading(false);
   };
 

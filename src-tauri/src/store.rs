@@ -22,6 +22,7 @@ pub struct Restriction {
     pub activity_name: String,
     pub start_time: String,
     pub end_time: String,
+    pub day: String,
     pub student_ids: Vec<String>,
 }
 
@@ -103,6 +104,7 @@ pub fn add_restriction(
     activity_name: String,
     start_time: String,
     end_time: String,
+    day: String,
     student_ids: Vec<String>,
 ) -> Result<Restriction, String> {
     let mut data = load_data(app.clone())?;
@@ -112,6 +114,7 @@ pub fn add_restriction(
         activity_name,
         start_time,
         end_time,
+        day,
         student_ids,
     };
 
@@ -128,6 +131,7 @@ pub fn update_restriction(
     activity_name: String,
     start_time: String,
     end_time: String,
+    day: String,
     student_ids: Vec<String>,
 ) -> Result<Restriction, String> {
     let mut data = load_data(app.clone())?;
@@ -141,6 +145,7 @@ pub fn update_restriction(
     restriction.activity_name = activity_name;
     restriction.start_time = start_time;
     restriction.end_time = end_time;
+    restriction.day = day;
     restriction.student_ids = student_ids;
     let updated_restriction = restriction.clone();
 

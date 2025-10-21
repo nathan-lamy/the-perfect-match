@@ -13,9 +13,14 @@ pub struct StudentWithCounts {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StudentsData {
-    pub column_titles: Vec<String>, // AUTIN, CHATEAUX, etc.
-    pub students: Vec<Student>,     // Just the list of students
-    pub students_with_counts: Vec<StudentWithCounts>, // Students with their count data
+    pub colles_counts: CollesCount,
+    pub students: Vec<Student>, // Just the list of students
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollesCount {
+    pub header: Vec<String>,
+    pub data: Vec<StudentWithCounts>,
 }
 
 pub async fn fetch_students_table(cookie: &str, disc: i32) -> Result<StudentsData, Box<dyn Error>> {
@@ -121,10 +126,11 @@ pub async fn fetch_students_table(cookie: &str, disc: i32) -> Result<StudentsDat
 
     println!("Fetched {} students", students.len());
 
-
     Ok(StudentsData {
-        column_titles,
         students,
-        students_with_counts,
+        colles_counts: CollesCount {
+            header: column_titles,
+            data: students_with_counts,
+        },
     })
 }

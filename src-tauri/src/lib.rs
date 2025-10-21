@@ -14,6 +14,8 @@ use session::authenticate;
 use store::*;
 use students::fetch_students_table;
 
+use crate::students::StudentsData;
+
 /* === AUTH === */
 #[tauri::command(async)]
 async fn authenticate_and_save(
@@ -50,20 +52,27 @@ fn check_auth_exists(app_handle: tauri::AppHandle) -> bool {
 
 /* === STUDENTS === */
 #[tauri::command(async)]
-async fn get_students(app: tauri::AppHandle, cookie: String) -> Result<Vec<Student>, String> {
+async fn get_students(
+    app: tauri::AppHandle,
+    cookie: String,
+    disc: i32,
+) -> Result<StudentsData, String> {
     // Discipline 1 is for Maths
-    let students_data = fetch_students_table(&cookie, 1)
+    let students_data = fetch_students_table(&cookie, disc)
         .await
         .map_err(|e| format!("Failed to fetch students: {}", e))?;
     // Save students to local store
+    let data = students_data.clone();
     let students = students_data.students;
-    let saved_students = save_students(app, students)?;
-    Ok(saved_students)
+    save_students(app, students)?;
+    Ok(data)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             check_auth_exists,

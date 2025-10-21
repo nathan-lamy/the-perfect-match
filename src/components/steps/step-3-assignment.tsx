@@ -8,7 +8,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type { Student, Restriction, StudentGroup, FutureSlot } from "@/types";
+import type {
+  Student,
+  Restriction,
+  StudentGroup,
+  FutureSlot,
+  StudentsData,
+  PastColle,
+} from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -19,8 +26,10 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { loadCache } from "@/lib/utils";
+import { loadCache, loadSession } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
+import { computeAssignments } from "@/lib/assignment";
+import { DownloadTimetableButton } from "@/lib/export";
 
 interface Step3AssignmentProps {
   onNext: () => void;
@@ -31,11 +40,11 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const [restrictions, setRestrictions] = useState<Restriction[]>([]);
   const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
   const [futureSlots, setFutureSlots] = useState<FutureSlot[]>([]);
-  const [pastColles, setPastColles] = useState<FutureSlot[]>([]);
+  const [pastColles, setPastColles] = useState<PastColle[]>([]);
   const [startDate, setStartDate] = useState("");
 
   const [activeRestrictions, setActiveRestrictions] = useState<string[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
 
   // Load initial data from backend and cache
   useEffect(() => {
@@ -46,7 +55,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
     const loadedGroups = invoke<StudentGroup[]>("load_groups").catch(() => []);
 
     const cachedSlots = loadCache<FutureSlot[]>("future_slots") || [];
-    const cachedPastColles = loadCache<FutureSlot[]>("last_week") || [];
+    const cachedPastColles = loadCache<PastColle[]>("last_week") || [];
     const cachedDate = loadCache<string>("future_slots_date") || "";
 
     Promise.all([loadedStudents, loadedRestrictions, loadedGroups]).then(
@@ -68,11 +77,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   }, []);
 
   const [calculated, setCalculated] = useState(false);
-  const [assignmentStats, setAssignmentStats] = useState({
-    assigned: 0,
-    students: 0,
-    score: 0,
-  });
+  const [assignment, setAssignment] = useState<any>(null);
   const [error, setError] = useState<string>("");
 
   const toggleRestriction = (id: string) => {
@@ -81,9 +86,58 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
     );
   };
 
-  const handleCalculate = () => {
+  const handleCalculate = async () => {
     setError("");
-    setCalculated(true);
+
+    if (!selectedGroup) {
+      setError(
+        "Veuillez sélectionner un groupe d'élèves pour les colles de Physique."
+      );
+      return;
+    }
+
+    try {
+      const { colles_counts: mathsColles } = await invoke<StudentsData>(
+        "get_students",
+        {
+          disc: 1,
+          cookie: loadSession(),
+        }
+      );
+      const { colles_counts: physicsColles } = await invoke<StudentsData>(
+        "get_students",
+        {
+          disc: 22,
+          cookie: loadSession(),
+        }
+      );
+
+      const activeRestrictionObjects = restrictions.filter((r) =>
+        activeRestrictions.includes(r.id)
+      );
+
+      const assignment = computeAssignments(
+        students,
+        futureSlots,
+        activeRestrictionObjects,
+        pastColles,
+        mathsColles,
+        studentGroups.find((g) => g.id === selectedGroup)?.student_ids || [],
+        physicsColles
+      );
+
+      setAssignment(assignment);
+      setCalculated(true);
+    } catch (e) {
+      console.error("Assignment calculation failed:", e);
+      setError(
+        "Erreur : " +
+          (e instanceof Error
+            ? e.message
+            : "Échec de la récupération des données des élèves")
+      );
+      return;
+    }
   };
 
   return (
@@ -117,8 +171,8 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
                       htmlFor={`restriction-${restriction.id}`}
                       className="cursor-pointer"
                     >
-                      {restriction.activity_name} ({restriction.start_time} -{" "}
-                      {restriction.end_time})
+                      {restriction.activity_name} ({restriction.day}{" "}
+                      {restriction.start_time} - {restriction.end_time})
                     </Label>
                   </div>
                 ))}
@@ -134,6 +188,19 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             </p>
           </div>
 
+          {/* Nombre de créneau de colles */}
+          <div className="space-y-2">
+            <Label>Nombre de créneaux de colles à venir :</Label>
+            {/* Maths */}
+            <p className="text-sm text-muted-foreground">
+              Mathématiques : {futureSlots.filter((s) => s.subject === "Mathématiques").length * 3}{" "}
+            </p>
+            {/* Physics */}
+            <p className="text-sm text-muted-foreground">
+              Physique : {futureSlots.filter((s) => s.subject === "Physique-Chimie").length * 3}{" "}
+            </p>
+          </div>
+
           {/* Group selection */}
           <div className="space-y-2">
             <Label>Groupe d'élèves pour les colles de Physique :</Label>
@@ -142,10 +209,13 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les élèves</SelectItem>
-                {studentGroups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
+                {studentGroups.map((group, i) => (
+                  <SelectItem
+                    key={group.id}
+                    value={group.id}
+                    defaultChecked={i === 0}
+                  >
+                    {group.name} ({group.student_ids.length} élèves)
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -163,6 +233,28 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         </CardContent>
       </Card>
 
+      <div className="flex justify-between gap-4">
+        {calculated && assignment && (
+          <DownloadTimetableButton
+            assignments={assignment.math.assignments}
+            students={students}
+            slots={futureSlots}
+            title="Planning des colles - Mathématiques"
+            filename="planning_colles_mathematiques.xlsx"
+          />
+        )}
+
+        {calculated && assignment && (
+          <DownloadTimetableButton
+            assignments={assignment.physics.assignments}
+            students={students}
+            slots={futureSlots}
+            title="Planning des colles - Physique"
+            filename="planning_colles_physique.xlsx"
+          />
+        )}
+      </div>
+
       {calculated && !error && (
         <Card>
           <CardHeader>
@@ -172,22 +264,28 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 rounded-lg bg-muted">
                 <p className="text-sm text-muted-foreground">
-                  Colles attribuées
+                  Colles attribuées (Maths)
                 </p>
-                <p className="text-2xl font-bold">{assignmentStats.assigned}</p>
+                <p className="text-2xl font-bold">
+                  {assignment.math.assignments.length}/{students.length}
+                </p>
               </div>
               <div className="p-4 rounded-lg bg-muted">
                 <p className="text-sm text-muted-foreground">
-                  Élèves concernés
+                  Colles attribuées (Physique)
                 </p>
-                <p className="text-2xl font-bold">{assignmentStats.students}</p>
+                <p className="text-2xl font-bold">
+                  {assignment.physics.assignments.length}/{
+                    studentGroups.find((g) => g.id === selectedGroup)?.student_ids.length || 0
+                  }
+                </p>
               </div>
               <div className="p-4 rounded-lg bg-muted">
                 <p className="text-sm text-muted-foreground">
                   Score de distribution
                 </p>
                 <p className="text-2xl font-bold">
-                  {assignmentStats.score}/100
+                  {assignment.math.totalScore + assignment.physics.totalScore}
                 </p>
               </div>
             </div>

@@ -29,3 +29,5 @@ base64 = "0.22.1"
 scraper = "0.24.0"
 uuid = { version = "1.18.1", features = ["v4"] }
 regex = "1.12.2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"

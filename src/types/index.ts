@@ -5,11 +5,27 @@ export interface Student {
   name: string
 }
 
+export interface StudentsData {
+  colles_counts: CollesCount
+  students: Student[]
+}
+
+export interface CollesCount {
+  header: string[]
+  data: StudentWithCounts[]
+}
+
+interface StudentWithCounts {
+  student: string // student name
+  counts: number[] // counts per teacher
+}
+
 export interface Restriction {
   id: string
   activity_name: string
   start_time: string
   end_time: string
+  day: string // Format: Monday, Tuesday, etc.
   student_ids: string[]
 }
 

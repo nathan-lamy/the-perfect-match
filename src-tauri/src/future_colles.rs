@@ -59,7 +59,10 @@ async fn find_page_for_date(target_date: &str, cookie: &str) -> Result<String, B
 }
 
 /// Fetches and parses all future colles for a given date
-pub async fn fetch_colles(date: &str, cookie: &str) -> Result<FutureCollesResponse, Box<dyn Error>> {
+pub async fn fetch_colles(
+    date: &str,
+    cookie: &str,
+) -> Result<FutureCollesResponse, Box<dyn Error>> {
     // Find the page URL
     let page_url = find_page_for_date(date, cookie).await?;
 
