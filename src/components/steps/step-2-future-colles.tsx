@@ -36,18 +36,19 @@ export function Step2FutureColles({
 
   const handleLoad = async () => {
     setLoading(true);
-    const slots = await invoke<FutureSlot[]>("fetch_future_colles", {
+    const { slots, url } = await invoke<{ slots: FutureSlot[], url: string }>("fetch_future_colles", {
       date: startDate,
       cookie: loadSession(),
     }).catch((err) => {
       console.error("Failed to fetch future slots:", err);
-      return [];
+      return { slots: [], url: "" };
     });
 
     setFutureSlots(slots);
     if (slots.length) {
       setLoaded(true);
       saveCache("future_slots", slots);
+      saveCache("future_slots_url", url);
     }
     setLoading(false);
   };

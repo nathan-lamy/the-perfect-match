@@ -14,6 +14,12 @@ pub struct Colle {
     pub subject: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct FutureCollesResponse {
+    pub colles: Vec<Colle>,
+    pub url: String,
+}
+
 /// Finds the page URL for a given date
 async fn find_page_for_date(target_date: &str, cookie: &str) -> Result<String, Box<dyn Error>> {
     let url = "https://bjcolle.fr/timetable_dashboard_period.php";
@@ -53,7 +59,7 @@ async fn find_page_for_date(target_date: &str, cookie: &str) -> Result<String, B
 }
 
 /// Fetches and parses all future colles for a given date
-pub async fn fetch_colles(date: &str, cookie: &str) -> Result<Vec<Colle>, Box<dyn Error>> {
+pub async fn fetch_colles(date: &str, cookie: &str) -> Result<FutureCollesResponse, Box<dyn Error>> {
     // Find the page URL
     let page_url = find_page_for_date(date, cookie).await?;
 
@@ -193,7 +199,10 @@ pub async fn fetch_colles(date: &str, cookie: &str) -> Result<Vec<Colle>, Box<dy
 
     println!("Extracted {} future colles", colles.len());
 
-    Ok(colles)
+    Ok(FutureCollesResponse {
+        colles,
+        url: page_url,
+    })
 }
 
 fn parse_french_month(month: &str) -> u32 {
@@ -215,7 +224,7 @@ fn parse_french_month(month: &str) -> u32 {
 }
 
 #[tauri::command(async)]
-pub async fn fetch_future_colles(date: &str, cookie: &str) -> Result<Vec<Colle>, String> {
+pub async fn fetch_future_colles(date: &str, cookie: &str) -> Result<FutureCollesResponse, String> {
     let colles = fetch_colles(date, cookie)
         .await
         .map_err(|e| format!("Failed to fetch future colles: {}", e))?;
