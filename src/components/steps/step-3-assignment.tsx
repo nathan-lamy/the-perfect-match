@@ -26,9 +26,9 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { loadCache, loadSession } from "@/lib/utils";
+import { loadCache, loadSession, saveCache } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
-import { computeAssignments } from "@/lib/assignment";
+import { Assignment, computeAssignments } from "@/lib/assignment";
 import { DownloadTimetableButton } from "@/lib/export";
 
 interface Step3AssignmentProps {
@@ -88,6 +88,18 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
     );
   };
 
+  const formatToPublish = (assignment: Assignment) => {
+    return {
+      student_id:
+        "E" +
+        students
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .findIndex((s) => s.id === assignment.studentId) +
+        1,
+      colle_id: assignment.slotId,
+    };
+  };
+
   const handleCalculate = async () => {
     setError("");
 
@@ -130,6 +142,12 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
 
       setAssignment(assignment);
       setCalculated(true);
+
+      const collesToPublish = [
+        ...assignment.math.assignments.map(formatToPublish),
+        ...assignment.physics.assignments.map(formatToPublish),
+      ];
+      saveCache("colles_to_publish", collesToPublish);
     } catch (e) {
       console.error("Assignment calculation failed:", e);
       setError(
@@ -195,11 +213,15 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             <Label>Nombre de créneaux de colles à venir :</Label>
             {/* Maths */}
             <p className="text-sm text-muted-foreground">
-              Mathématiques : {futureSlots.filter((s) => s.subject === "Mathématiques").length * 3}{" "}
+              Mathématiques :{" "}
+              {futureSlots.filter((s) => s.subject === "Mathématiques").length *
+                3}{" "}
             </p>
             {/* Physics */}
             <p className="text-sm text-muted-foreground">
-              Physique : {futureSlots.filter((s) => s.subject === "Physique-Chimie").length * 3}{" "}
+              Physique :{" "}
+              {futureSlots.filter((s) => s.subject === "Physique-Chimie")
+                .length * 3}{" "}
             </p>
           </div>
 
@@ -277,9 +299,9 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
                   Colles attribuées (Physique)
                 </p>
                 <p className="text-2xl font-bold">
-                  {assignment.physics.assignments.length}/{
-                    studentGroups.find((g) => g.id === selectedGroup)?.student_ids.length || 0
-                  }
+                  {assignment.physics.assignments.length}/
+                  {studentGroups.find((g) => g.id === selectedGroup)
+                    ?.student_ids.length || 0}
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-muted">

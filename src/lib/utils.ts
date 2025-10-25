@@ -45,3 +45,5 @@ export function getDayOfWeek(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 }
+
+export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

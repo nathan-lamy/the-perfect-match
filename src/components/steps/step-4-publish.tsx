@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -12,7 +12,12 @@ import { LoadingButton } from "@/components/loading-button";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { loadSession } from "@/lib/utils";
+import { loadCache, loadSession, sleep } from "@/lib/utils";
+
+export interface Colle {
+  studentId: string;
+  colleId: string;
+}
 
 interface Step4PublishProps {
   onComplete: () => void;
@@ -21,24 +26,40 @@ interface Step4PublishProps {
 export function Step4Publish({ onComplete }: Step4PublishProps) {
   const [loading, setLoading] = useState(false);
   const [published, setPublished] = useState(false);
+  const [colles, setColles] = useState<Colle[]>([]);
+  const [origin, setOrigin] = useState<string>("");
+
+  useEffect(() => {
+    const storedColles = loadCache<Colle[]>("colles_to_publish");
+    const storedOrigin = loadCache<string>("future_slots_url");
+    if (storedColles) {
+      console.log("Loaded colles to publish:", storedColles);
+      setColles(storedColles);
+    }
+    if (storedOrigin) {
+      setOrigin(storedOrigin);
+    }
+  }, []);
 
   const handlePublish = async () => {
     setLoading(true);
 
-    // TODO: Remove test
-    const url = await invoke<string>("post_timetable_dashboard", {
-      checkboxId: "COCHER_E1",
-      cookie: loadSession(),
-      from: "https://bjcolle.fr/timetable_dashboard_period.php?page=2"
-    });
-    console.log("Dashboard URL:", url);
-    await invoke("post_timetable_choice_students", {
-      url: "https://bjcolle.fr/" + url,
-      cookie: loadSession(),
-      studentId: "E30"  // TODO: Remove test
-    })
+    const cookie = loadSession();
+    for (const colle of colles) {
+      const url = await invoke<string>("post_timetable_dashboard", {
+        checkboxId: colle.colleId,
+        cookie,
+        from: origin,
+      });
+      console.log("Dashboard URL:", url);
+      await invoke("post_timetable_choice_students", {
+        url: "https://bjcolle.fr/" + url,
+        cookie,
+        studentId: colle.studentId,
+      });
+      await sleep(500); // To avoid overwhelming the server
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
     setPublished(true);
     setLoading(false);
   };
@@ -48,13 +69,13 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
       <CardHeader>
         <CardTitle>Étape 4 : Publier les colles</CardTitle>
         <CardDescription>
-          Publiez l'attribution finale pour la rendre visible aux élèves
+          Publiez l'attribution finale pour la rendre visible sur BJColle
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {!published ? (
           <LoadingButton loading={loading} onClick={handlePublish}>
-            Publier les colles
+            Publier {colles.length} colles
           </LoadingButton>
         ) : (
           <div className="space-y-4">
