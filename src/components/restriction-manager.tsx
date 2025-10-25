@@ -24,8 +24,8 @@ export function RestrictionManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    startTime: "",
-    endTime: "",
+    startTime: "15:00",
+    endTime: "18:00",
     studentIds: [] as string[],
     day: "",
   });
