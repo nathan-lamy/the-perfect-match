@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { loadSession, saveCache } from "@/lib/utils";
+import { getWeekBefore, loadSession, saveCache } from "@/lib/utils";
 
 interface Step1PastCollesProps {
   onNext: () => void;
@@ -28,13 +28,26 @@ export function Step1PastColles({ onNext, onSkip }: Step1PastCollesProps) {
 
   const handleLoad = async () => {
     setLoading(true);
-    const colles = await invoke<PastColle[]>("fetch_last_week_colles", {
+
+    const cookie = loadSession();
+    const lastWeek = await invoke<PastColle[]>("fetch_last_week_colles", {
       date: startDate,
-      cookie: loadSession(),
+      cookie,
     }).catch((err) => {
       console.error("Failed to fetch past colles:", err);
       return [];
     });
+    console.log(getWeekBefore(startDate));
+    const weekBefore = await invoke<PastColle[]>("fetch_last_week_colles", {
+      date: getWeekBefore(startDate),
+      cookie,
+    }).catch((err) => {
+      console.error("Failed to fetch past colles:", err);
+      return [];
+    });
+
+    const colles = mergePastColles(lastWeek, weekBefore);
+    console.log("Merged past colles:", colles);
 
     setPastColles(colles);
     if (colles.length) {
@@ -90,7 +103,7 @@ export function Step1PastColles({ onNext, onSkip }: Step1PastCollesProps) {
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {pastColles.length} colle(s) passée(s) chargée(s)
+              {pastColles.reduce((sum, c) => sum + c.teachers.length, 0)} colle(s) passée(s) chargée(s)
             </p>
             <Button onClick={onNext}>Continuer</Button>
           </div>
@@ -98,4 +111,26 @@ export function Step1PastColles({ onNext, onSkip }: Step1PastCollesProps) {
       </CardContent>
     </Card>
   );
+}
+
+function mergePastColles(
+  colles1: PastColle[],
+  colles2: PastColle[]
+): PastColle[] {
+  const merged: PastColle[] = [...colles1];
+
+  for (const colle2 of colles2) {
+    const existing = merged.find((c) => c.name === colle2.name);
+    if (existing) {
+      // Merge teachers without duplicates
+      const newTeachers = colle2.teachers.filter(
+        (t) => !existing.teachers.includes(t)
+      );
+      existing.teachers.push(...newTeachers);
+    } else {
+      merged.push(colle2);
+    }
+  }
+
+  return merged;
 }

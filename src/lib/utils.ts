@@ -1,8 +1,8 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 // Session storage utilities
@@ -32,8 +32,8 @@ export function clearCache(key: string) {
 
 // Time utilities
 export function compareTimes(t1: string, t2: string) {
-  const [h1, m1] = t1.split(':').map(Number);
-  const [h2, m2] = t2.split(':').map(Number);
+  const [h1, m1] = t1.split(":").map(Number);
+  const [h2, m2] = t2.split(":").map(Number);
 
   const minutes1 = h1 * 60 + m1;
   const minutes2 = h2 * 60 + m2;
@@ -43,7 +43,18 @@ export function compareTimes(t1: string, t2: string) {
 
 export function getDayOfWeek(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { weekday: 'long' });
+  return date.toLocaleDateString("en-US", { weekday: "long" });
 }
 
-export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export const sleep = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+// Take a date string (YYYY/MM/DD) and return the date string one week before (YYYY/MM/DD)
+export function getWeekBefore(dateStr: string): string {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() - 7);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}/${month}/${day}`;
+}

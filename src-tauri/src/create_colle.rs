@@ -80,7 +80,7 @@ pub async fn post_timetable_dashboard(
 #[tauri::command(async)]
 pub async fn post_timetable_choice_students(
     url: &str,
-    student_id: &str,
+    students_id: Vec<&str>,
     cookie: &str,
 ) -> Result<(), String> {
     let client = Client::new();
@@ -99,7 +99,9 @@ pub async fn post_timetable_choice_students(
         format!("{}%26c%3D282983%26d%3D1%26e%3D%26cc%3D-1", url),
     );
     form_data.insert("datepicker_go", "25%2F08%2F2025".to_string());
-    form_data.insert(student_id, "on".to_string());
+    for student_id in students_id {
+        form_data.insert(student_id, "on".to_string());
+    }
     form_data.insert("VALIDER_STUDENTS", "Enregistrer".to_string());
 
     // Make POST request

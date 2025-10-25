@@ -16,7 +16,7 @@ const TOTAL_COLLES_WEIGHT = 50; // Weight factor for total colles
 const MAX_SCORE = RESTRICTION_PENALTY;
 const MAX_RETRIES = 10;
 
-const TIME_MARGIN = 15; // minutes
+const TIME_MARGIN = 31; // minutes
 const PLACES_BY_SLOT = 3; // Number of students per slot
 
 const makeComputeFunction = (
@@ -49,7 +49,7 @@ const makeComputeFunction = (
       (assignment) =>
         assignment.studentId === student.id &&
         assignment.slot &&
-        getDayOfWeek(assignment.slot.date) === getDayOfWeek(slot.date)
+        assignment.slot.date === slot.date
     );
     if (hasSameDayAssignment) {
       score += SAME_DAY_PENALTY;
@@ -136,7 +136,7 @@ const makeMatrix = (
 // If the total score is above MAX_PENALTY, retry with twice the noise (MAX_RETRIES times)
 const getAssignments = (
   students: Student[],
-  slots: FutureSlot[],
+  mathColles: FutureSlot[],
   makeMatrix1: (noiseFactor: number) => number[][],
   makeMatrix2: (
     noiseFactor: number,
@@ -153,10 +153,16 @@ const getAssignments = (
 
     console.log(weight1, MAX_SCORE);
     if (weight1 < MAX_SCORE) {
-      const fa1 = formatAssignments(students, slots, a1);
+      const fa1 = formatAssignments(students, mathColles, a1).filter(
+        (a) => a.slotId !== null
+      );
+      console.log(
+        "First assignment successful:",
+        fa1.map(({ slotId }) => mathColles.find((s) => s.id === slotId))
+      );
       const matrix2 = makeMatrix2(
         noiseFactor,
-        generateRestrictionsFromAssignments(students, slots, fa1),
+        generateRestrictionsFromAssignments(students, mathColles, fa1),
         fa1
       );
       const { assignments: a2, assignmentsWeight: weight2 } =
@@ -211,15 +217,16 @@ export const generateRestrictionsFromAssignments = (
   slots: FutureSlot[],
   assignments: Assignment[]
 ): Restriction[] => {
-  return assignments.map(({ studentId }, index) => {
+  return assignments.map(({ studentId, slotId }) => {
     const student = students.find((s) => s.id === studentId);
+    const slot = slots.find((s) => s.id === slotId)!;
     return {
-      id: `auto-restriction-${index}`,
+      id: `auto-restriction-${slotId}-${studentId}`,
       activity_name: `Assigned Slot for ${student?.name || "Unknown"}`,
-      start_time: slots[index].start_hour,
-      end_time: slots[index].end_hour,
+      start_time: slot.start_hour,
+      end_time: slot.end_hour,
       student_ids: [studentId],
-      day: getDayOfWeek(slots[index].date),
+      day: getDayOfWeek(slot.date),
     };
   });
 };
@@ -256,16 +263,18 @@ export const computeAssignments = (
     previousAssignments: Assignment[]
   ) => {
     const physStudents = students.filter((s) => physGroup.includes(s.id));
+    const mathAssignments = previousAssignments.map((pa) => ({
+      studentId: pa.studentId,
+      slot: slots.find((s) => s.id === pa.slotId)!,
+    }));
+    console.log("Previous math assignments:", mathAssignments);
     return makeMatrix(
       physStudents,
       physColles,
       newRestrictions,
       pastColles,
       physCount,
-      previousAssignments.map((pa) => ({
-        studentId: pa.studentId,
-        slot: slots.find((s) => s.id === pa.slotId)!,
-      })),
+      mathAssignments,
       noiseFactor
     );
   };
@@ -275,7 +284,7 @@ export const computeAssignments = (
   // Get assignments
   const [mathResult, physResult] = getAssignments(
     students,
-    slots,
+    mathColles,
     makeMathMatrix,
     makePhysMatrix
   )!;

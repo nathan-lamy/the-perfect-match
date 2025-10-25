@@ -63,7 +63,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         setStudents(
           students.map((s) => ({
             ...s,
-            name: s.first_name + " " + s.last_name,
+            name: s.last_name + " " + s.first_name,
           }))
         );
         setRestrictions(restrictions);
@@ -92,10 +92,10 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
     return {
       student_id:
         "E" +
-        students
-          .sort((a, b) => a.id.localeCompare(b.id))
+        (students
+          .sort((a, b) => a.name.localeCompare(b.name))
           .findIndex((s) => s.id === assignment.studentId) +
-        1,
+          1),
       colle_id: assignment.slotId,
     };
   };

@@ -14,9 +14,14 @@ import { CheckCircle2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { loadCache, loadSession, sleep } from "@/lib/utils";
 
-export interface Colle {
-  studentId: string;
-  colleId: string;
+interface Assignment {
+  student_id: string;
+  colle_id: string;
+}
+
+interface Colle {
+  colle_id: string;
+  students_id: string[];
 }
 
 interface Step4PublishProps {
@@ -30,11 +35,22 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
   const [origin, setOrigin] = useState<string>("");
 
   useEffect(() => {
-    const storedColles = loadCache<Colle[]>("colles_to_publish");
+    const storedColles = loadCache<Assignment[]>("colles_to_publish");
     const storedOrigin = loadCache<string>("future_slots_url");
     if (storedColles) {
-      console.log("Loaded colles to publish:", storedColles);
-      setColles(storedColles);
+      const convertedColles = Object.values(
+        storedColles.reduce(
+          (acc, { student_id, colle_id }) => (
+            (acc[colle_id] ??= { colle_id, students_id: [] }).students_id.push(
+              student_id
+            ),
+            acc
+          ),
+          {} as Record<string, Colle>
+        )
+      );
+      console.log("Loaded colles to publish:", convertedColles);
+      setColles(convertedColles);
     }
     if (storedOrigin) {
       setOrigin(storedOrigin);
@@ -47,15 +63,14 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
     const cookie = loadSession();
     for (const colle of colles) {
       const url = await invoke<string>("post_timetable_dashboard", {
-        checkboxId: colle.colleId,
+        checkboxId: colle.colle_id,
         cookie,
         from: origin,
       });
-      console.log("Dashboard URL:", url);
       await invoke("post_timetable_choice_students", {
         url: "https://bjcolle.fr/" + url,
         cookie,
-        studentId: colle.studentId,
+        studentsId: colle.students_id,
       });
       await sleep(500); // To avoid overwhelming the server
     }
@@ -75,7 +90,7 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
       <CardContent className="space-y-4">
         {!published ? (
           <LoadingButton loading={loading} onClick={handlePublish}>
-            Publier {colles.length} colles
+            Publier {colles.length} colles ({colles.reduce((sum, c) => sum + c.students_id.length, 0)}{" "}élèves)
           </LoadingButton>
         ) : (
           <div className="space-y-4">
