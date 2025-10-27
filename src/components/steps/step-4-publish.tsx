@@ -30,7 +30,9 @@ interface Step4PublishProps {
 
 export function Step4Publish({ onComplete }: Step4PublishProps) {
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [published, setPublished] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const [colles, setColles] = useState<Colle[]>([]);
   const [origin, setOrigin] = useState<string>("");
 
@@ -57,26 +59,37 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
     }
   }, []);
 
-  const handlePublish = async () => {
-    setLoading(true);
+  const handlePublish = function (deleted = false) {
+    return async () => {
+      if (deleted) {
+        setDeleting(true);
+      } else {
+        setLoading(true);
+      }
 
-    const cookie = loadSession();
-    for (const colle of colles) {
-      const url = await invoke<string>("post_timetable_dashboard", {
-        checkboxId: colle.colle_id,
-        cookie,
-        from: origin,
-      });
-      await invoke("post_timetable_choice_students", {
-        url: "https://bjcolle.fr/" + url,
-        cookie,
-        studentsId: colle.students_id,
-      });
-      await sleep(500); // To avoid overwhelming the server
-    }
+      const cookie = loadSession();
+      for (const colle of colles) {
+        const url = await invoke<string>("post_timetable_dashboard", {
+          checkboxId: colle.colle_id,
+          cookie,
+          from: origin,
+        });
+        await invoke("post_timetable_choice_students", {
+          url: "https://bjcolle.fr/" + url,
+          cookie,
+          studentsId: deleted ? [] : colle.students_id,
+        });
+        await sleep(250); // To avoid overwhelming the server
+      }
 
-    setPublished(true);
-    setLoading(false);
+      if (deleted) {
+        setDeleted(true);
+        setDeleting(false);
+      } else {
+        setPublished(true);
+        setLoading(false);
+      }
+    };
   };
 
   return (
@@ -89,8 +102,9 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {!published ? (
-          <LoadingButton loading={loading} onClick={handlePublish}>
-            Publier {colles.length} colles ({colles.reduce((sum, c) => sum + c.students_id.length, 0)}{" "}élèves)
+          <LoadingButton loading={loading} onClick={handlePublish()}>
+            Publier {colles.length} colles (
+            {colles.reduce((sum, c) => sum + c.students_id.length, 0)} élèves)
           </LoadingButton>
         ) : (
           <div className="space-y-4">
@@ -106,6 +120,29 @@ export function Step4Publish({ onComplete }: Step4PublishProps) {
             <Button onClick={onComplete} variant="outline">
               Retour au début
             </Button>
+          </div>
+        )}
+
+        {!deleted && (
+          <LoadingButton
+            loading={deleting}
+            onClick={handlePublish(true)}
+            variant="destructive"
+            className="ml-2"
+          >
+            Supprimer toutes les colles
+          </LoadingButton>
+        )}
+
+        {deleted && (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-destructive/10 text-destructive">
+            <CheckCircle2 className="w-6 h-6" />
+            <div>
+              <p className="font-medium">Suppression réussie !</p>
+              <p className="text-sm">
+                Toutes les colles ont été supprimées avec succès
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
