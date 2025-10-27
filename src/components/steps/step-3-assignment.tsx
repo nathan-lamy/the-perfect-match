@@ -30,10 +30,13 @@ import { loadCache, loadSession, saveCache } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
 import { Assignment, computeAssignments } from "@/lib/assignment";
 import { DownloadTimetableButton } from "@/lib/export";
+import { Input } from "@/components/ui/input";
 
 interface Step3AssignmentProps {
   onNext: () => void;
 }
+
+const AUTO_RETRY = 100;
 
 export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const [students, setStudents] = useState<Student[]>([]);
@@ -42,6 +45,8 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const [futureSlots, setFutureSlots] = useState<FutureSlot[]>([]);
   const [pastColles, setPastColles] = useState<PastColle[]>([]);
   const [startDate, setStartDate] = useState("");
+
+  const [autoRetry, setAutoRetry] = useState<number>(AUTO_RETRY);
 
   const [activeRestrictions, setActiveRestrictions] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("");
@@ -130,22 +135,36 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         activeRestrictions.includes(r.id)
       );
 
-      const assignment = computeAssignments(
-        students,
-        futureSlots,
-        activeRestrictionObjects,
-        pastColles,
-        mathsColles,
-        studentGroups.find((g) => g.id === selectedGroup)?.student_ids || [],
-        physicsColles
-      );
+      let minAssignment = null;
+      let score = Infinity;
 
-      setAssignment(assignment);
+      for (let i = 0; i < AUTO_RETRY; i++) {
+        const currentAssignment = computeAssignments(
+          students,
+          futureSlots,
+          activeRestrictionObjects,
+          pastColles,
+          mathsColles,
+          studentGroups.find((g) => g.id === selectedGroup)?.student_ids || [],
+          physicsColles
+        );
+
+        const currentScore =
+          currentAssignment.math.totalScore +
+          currentAssignment.physics.totalScore;
+
+        if (currentScore < score) {
+          score = currentScore;
+          minAssignment = currentAssignment;
+        }
+      }
+
+      setAssignment(minAssignment);
       setCalculated(true);
 
       const collesToPublish = [
-        ...assignment.math.assignments.map(formatToPublish),
-        ...assignment.physics.assignments.map(formatToPublish),
+        ...minAssignment!.math.assignments.map(formatToPublish),
+        ...minAssignment!.physics.assignments.map(formatToPublish),
       ];
       saveCache("colles_to_publish", collesToPublish);
     } catch (e) {
@@ -245,6 +264,26 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Retry number input */}
+          <div className="space-y-2">
+            <Label>Nombre de tentatives automatiques :</Label>
+            <Input
+              type="number"
+              min={1}
+              value={autoRetry}
+              onChange={(e) =>
+                setAutoRetry(parseInt(e.target.value) || AUTO_RETRY)
+              }
+              className="w-24"
+            />
+          </div>
+
+          {/* Small warning text */}
+          <p className="text-xs text-muted-foreground">
+            Avertissement : Le calcul de l'attribution peut prendre plusieurs
+            avec un grand nombre de tentatives ({">"} 100)
+          </p>
 
           {error && (
             <Alert variant="destructive">
