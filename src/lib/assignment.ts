@@ -271,7 +271,7 @@ export const computeAssignments = (
     return makeMatrix(
       physStudents,
       physColles,
-      newRestrictions,
+      [...restrictions, ...newRestrictions],
       pastColles,
       physCount,
       mathAssignments,
