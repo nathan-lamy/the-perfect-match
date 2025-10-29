@@ -233,8 +233,15 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             {/* Maths */}
             <p className="text-sm text-muted-foreground">
               Mathématiques :{" "}
-              {futureSlots.filter((s) => s.subject === "Mathématiques").length *
-                3}{" "}
+              {futureSlots.filter(
+                (s) =>
+                  s.subject.includes("Mathématiques") && s.teacher !== "M. MOULIN"
+              ).length *
+                3 +
+                futureSlots.filter(
+                  (s) =>
+                    s.subject.includes("Mathématiques") && s.teacher === "M. MOULIN"
+                ).length}{" "}
             </p>
             {/* Physics */}
             <p className="text-sm text-muted-foreground">

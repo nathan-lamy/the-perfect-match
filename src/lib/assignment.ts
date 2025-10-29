@@ -246,7 +246,7 @@ export const computeAssignments = (
   physCount: CollesCount
 ) => {
   // Assign math colles first
-  const mathColles = slots.filter((s) => s.subject === "Mathématiques");
+  const mathColles = slots.filter((s) => s.subject.includes("Mathématiques"));
   const makeMathMatrix = (noiseFactor: number) =>
     makeMatrix(
       students,
@@ -261,7 +261,7 @@ export const computeAssignments = (
   console.log("Students:", students.length);
 
   // Assign physics colles next
-  const physColles = slots.filter((s) => s.subject === "Physique-Chimie");
+  const physColles = slots.filter((s) => s.subject.includes("Physique-Chimie"));
   const makePhysMatrix = (
     noiseFactor: number,
     newRestrictions: Restriction[],
