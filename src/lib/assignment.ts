@@ -64,12 +64,16 @@ const makeComputeFunction = (
       if (teacherIndex !== -1) {
         const countWithTeacher = studentCounts.counts[teacherIndex];
         score += countWithTeacher * TOTAL_COLLES_WEIGHT;
+        // HOT FIX: Extra weight for M. MOULIN
+        if (slot.teacher === "M. MOULIN") {
+          score += countWithTeacher * TOTAL_COLLES_WEIGHT * 10; // Extra weight for M. MOULIN
+        }
       }
     }
 
     // Noise (to randomize among equal scores)
     // Noise range: 0 to WEIGHT
-    const noiseUpperBound = TOTAL_COLLES_WEIGHT * 2 ** noiseFactor;
+    const noiseUpperBound = (TOTAL_COLLES_WEIGHT / 10) * 2 ** noiseFactor;
     const noise = Math.floor(Math.random() * noiseUpperBound);
     score += noise;
 
@@ -119,7 +123,8 @@ const makeMatrix = (
   const matrix: number[][] = [];
 
   for (const slot of slots) {
-    for (let i = 0; i < PLACES_BY_SLOT; i++) {
+    const places = slot.teacher === "M. MOULIN" ? 1 : PLACES_BY_SLOT;
+    for (let i = 0; i < places; i++) {
       const row: number[] = [];
       for (const student of students) {
         const score = computeScore(student, slot);
