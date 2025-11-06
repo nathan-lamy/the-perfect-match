@@ -23,7 +23,7 @@ pub async fn post_timetable_dashboard(
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
     let _ = client
-        .get("https://bjcolle.fr/")
+        .get(from) // "https://bjcolle.fr/"
         .header("Cookie", cookie)
         .send()
         .await
