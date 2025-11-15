@@ -411,17 +411,27 @@ fn format_assignments(
     slots: &[FutureSlot],
     raw_assignments: &[Option<usize>],
 ) -> Vec<Assignment> {
+    // Créer un mapping: row_index -> slot réel
+    let mut row_to_slot = Vec::new();
+    for slot in slots {
+        let places = if slot.teacher == "M. MOULIN" { 1 } else { PLACES_BY_SLOT };
+        for _ in 0..places {
+            row_to_slot.push(slot);
+        }
+    }
+
     raw_assignments
         .iter()
         .enumerate()
-        .map(|(slot_index, student_index)| match student_index {
+        .map(|(row_index, student_index)| match student_index {
             None => Assignment {
                 student_id: String::new(),
                 slot_id: None,
             },
             Some(idx) => {
                 let student = &students[*idx];
-                let slot = &slots[slot_index / PLACES_BY_SLOT];
+                // Utiliser le mapping au lieu de diviser par PLACES_BY_SLOT
+                let slot = row_to_slot[row_index];
                 Assignment {
                     student_id: student.id.clone(),
                     slot_id: Some(slot.id.clone()),
