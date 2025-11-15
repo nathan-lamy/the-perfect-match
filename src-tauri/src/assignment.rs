@@ -486,7 +486,7 @@ fn min_weight_assign(matrix: &[Vec<i32>]) -> (Vec<Option<usize>>, i32) {
     let mat = Matrix::from_vec(rows, cols, flat).unwrap_or_else(|e| {
         panic!("Failed to create matrix for munkres: {}", e);
     });
-    let (cost, assignments_vec) = pathfinding::kuhn_munkres::kuhn_munkres(&mat);
+    let (cost, assignments_vec) = pathfinding::kuhn_munkres::kuhn_munkres_min(&mat);
 
     // Convert back to our format
     let mut assignments = vec![None; rows];

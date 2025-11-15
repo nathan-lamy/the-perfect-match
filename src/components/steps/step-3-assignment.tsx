@@ -138,12 +138,6 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
       return;
     }
 
-    if (numAttempts < 1 || numAttempts > 100) {
-      setError("Le nombre de tentatives doit être entre 1 et 100.");
-      setComputing(false);
-      return;
-    }
-
     try {
       // Fetch student data
       const { colles_counts: mathsColles } = await invoke<StudentsData>(

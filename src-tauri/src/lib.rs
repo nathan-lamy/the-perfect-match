@@ -120,14 +120,6 @@ async fn compute_assignment(
     if slots.is_empty() {
         return Err("Aucun créneau fourni".to_string());
     }
-    if n == 0 {
-        return Err("Le nombre d'essais doit être supérieur à 0".to_string());
-    }
-    if n > 100 {
-        return Err(
-            "Le nombre d'essais ne peut pas dépasser 100 pour éviter une surcharge".to_string(),
-        );
-    }
 
     // Run the computation in a blocking task to avoid blocking the async runtime
     // This is important because the computation is CPU-intensive
