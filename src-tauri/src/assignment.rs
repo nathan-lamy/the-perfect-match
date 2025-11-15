@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, NaiveDate, Weekday};
 use tracing::{debug, info, warn};
+use pathfinding::matrix::Matrix;
 
 // Constants - could be moved to a config file
 const RESTRICTION_PENALTY: i32 = 12_000_000;
@@ -94,11 +95,6 @@ fn parse_time(time: &str) -> i32 {
     let hours: i32 = parts.next().and_then(|h| h.parse().ok()).unwrap_or(0);
     let minutes: i32 = parts.next().and_then(|m| m.parse().ok()).unwrap_or(0);
     hours * 60 + minutes
-}
-
-#[inline]
-fn compare_times(time1: &str, time2: &str) -> i32 {
-    parse_time(time1) - parse_time(time2)
 }
 
 fn get_day_of_week(date_str: &str) -> String {
@@ -221,7 +217,8 @@ struct SlotInfo {
 #[inline]
 fn has_restriction_conflict(
     student_id: &str,
-    slot: &FutureSlot,
+    // TODO: Check if not needed to pass full slot
+    _slot: &FutureSlot,
     slot_day: &str,
     slot_start: i32,
     slot_end: i32,
@@ -442,12 +439,19 @@ fn min_weight_assign(matrix: &[Vec<i32>]) -> (Vec<Option<usize>>, i32) {
     debug!("Running Hungarian algorithm on {}×{} matrix", rows, cols);
     
     // Convert to f64 for munkres crate (it expects f64)
-    let weights: Vec<Vec<f64>> = matrix.iter()
-        .map(|row| row.iter().map(|&v| v as f64).collect())
-        .collect();
+    let weights = matrix;
     
-    // Solve using munkres algorithm
-    let (cost, assignments_vec) = pathfinding::kuhn_munkres::kuhn_munkres(&weights);
+    // Flatten the weights WITHOUT consuming it
+    let rows = weights.len();
+    let cols = weights[0].len();
+
+    let flat = weights.iter().flat_map(|row| row.iter().copied()).collect();
+
+    // Build the matrix for Kuhn-Munkres
+    let mat = Matrix::from_vec(rows, cols, flat).unwrap_or_else(|e| {
+        panic!("Failed to create matrix for munkres: {}", e);
+    });
+    let (cost, assignments_vec) = pathfinding::kuhn_munkres::kuhn_munkres(&mat);
     
     // Convert back to our format
     let mut assignments = vec![None; rows];

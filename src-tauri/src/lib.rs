@@ -1,28 +1,27 @@
+mod assignment;
 mod auth;
+mod create_colle;
 mod future_colles;
 mod past_colles;
 mod session;
 mod store;
 mod students;
-mod create_colle;
-mod assignment;
 
 use std::vec;
 
 use auth::{auth_exists, read_auth, save_auth};
+use create_colle::{post_timetable_choice_students, post_timetable_dashboard};
 use future_colles::fetch_future_colles;
 use past_colles::fetch_last_week_colles;
 use session::authenticate;
 use store::*;
 use students::fetch_students_table;
-use create_colle::{post_timetable_dashboard, post_timetable_choice_students};
 
 use crate::students::StudentsData;
 
 use assignment::{
-    Student, FutureSlot, Restriction, PastColle, 
-    StudentCounts, CollesCount, Assignment, 
-    AssignmentResult, ComputeResult
+    compute_best_assignment, CollesCount, ComputeResult, FutureSlot, PastColle, Restriction,
+    Student,
 };
 
 /* === AUTH === */
@@ -78,10 +77,10 @@ async fn get_students(
 }
 
 /// Tauri command wrapper for compute_best_assignment
-/// 
+///
 /// This function is called from the frontend via invoke("compute_best_assignment", {...})
 /// It takes ownership of the data (Vec instead of &[]) because Tauri passes owned data
-/// 
+///
 /// # Arguments
 /// * `students` - List of students
 /// * `slots` - List of available time slots
@@ -91,11 +90,11 @@ async fn get_students(
 /// * `phys_group` - IDs of students in physics group
 /// * `phys_count` - Count of physics colles per teacher
 /// * `n` - Number of parallel attempts to make
-/// 
+///
 /// # Returns
 /// Result containing the best assignment or an error message
 #[tauri::command]
-pub async fn compute_best_assignment(
+async fn compute_assignment(
     students: Vec<Student>,
     slots: Vec<FutureSlot>,
     restrictions: Vec<Restriction>,
@@ -107,9 +106,13 @@ pub async fn compute_best_assignment(
 ) -> Result<ComputeResult, String> {
     // Log for debugging
     println!("Starting assignment computation with {} attempts", n);
-    println!("Students: {}, Slots: {}, Restrictions: {}", 
-             students.len(), slots.len(), restrictions.len());
-    
+    println!(
+        "Students: {}, Slots: {}, Restrictions: {}",
+        students.len(),
+        slots.len(),
+        restrictions.len()
+    );
+
     // Validate inputs
     if students.is_empty() {
         return Err("Aucun étudiant fourni".to_string());
@@ -121,25 +124,23 @@ pub async fn compute_best_assignment(
         return Err("Le nombre d'essais doit être supérieur à 0".to_string());
     }
     if n > 100 {
-        return Err("Le nombre d'essais ne peut pas dépasser 100 pour éviter une surcharge".to_string());
+        return Err(
+            "Le nombre d'essais ne peut pas dépasser 100 pour éviter une surcharge".to_string(),
+        );
     }
 
     // Run the computation in a blocking task to avoid blocking the async runtime
     // This is important because the computation is CPU-intensive
-    let result = tokio::task::spawn_blocking(move || {
-        assignment_algorithm::compute_best_assignment(
-            students,
-            slots,
-            restrictions,
-            past_colles,
-            math_count,
-            phys_group,
-            phys_count,
-            n,
-        )
-    })
-    .await
-    .map_err(|e| format!("Erreur lors de l'exécution du calcul: {}", e))?;
+    let result = compute_best_assignment(
+        students,
+        slots,
+        restrictions,
+        past_colles,
+        math_count,
+        phys_group,
+        phys_count,
+        n,
+    );
 
     // Return the result or an error
     match result {
@@ -180,7 +181,7 @@ pub fn run() {
             fetch_future_colles,
             post_timetable_dashboard,
             post_timetable_choice_students,
-            compute_best_assignment,
+            compute_assignment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
