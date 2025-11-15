@@ -81,7 +81,7 @@ pub struct AssignmentResult {
     pub total_score: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeResult {
     pub math: AssignmentResult,
     pub physics: AssignmentResult,
@@ -429,7 +429,7 @@ fn generate_restrictions_from_assignments(
     restrictions
 }
 
-// Hungarian algorithm using munkres crate
+// Hungarian algorithm using pathfinding crate
 fn min_weight_assign(matrix: &[Vec<i32>]) -> (Vec<Option<usize>>, i32) {
     let rows = matrix.len();
     let cols = if rows > 0 { matrix[0].len() } else { 0 };
@@ -651,15 +651,15 @@ pub fn compute_assignments(
 }
 
 // Parallel computation of multiple assignments using rayon
-#[tauri::command]
+// This is the main entry point called from Tauri
 pub fn compute_best_assignment(
-    students: &[Student],
-    slots: &[FutureSlot],
-    restrictions: &[Restriction],
-    past_colles: &[PastColle],
-    math_count: &CollesCount,
-    phys_group: &[String],
-    phys_count: &CollesCount,
+    students: Vec<Student>,
+    slots: Vec<FutureSlot>,
+    restrictions: Vec<Restriction>,
+    past_colles: Vec<PastColle>,
+    math_count: CollesCount,
+    phys_group: Vec<String>,
+    phys_count: CollesCount,
     n: usize,
 ) -> Option<ComputeResult> {
     info!("Generating {} assignments in parallel to find the best one", n);
@@ -672,13 +672,13 @@ pub fn compute_best_assignment(
             info!("Thread {}: Starting attempt {}/{}", thread_id, i + 1, n);
             
             let result = compute_assignments(
-                students,
-                slots,
-                restrictions,
-                past_colles,
-                math_count,
-                phys_group,
-                phys_count,
+                &students,
+                &slots,
+                &restrictions,
+                &past_colles,
+                &math_count,
+                &phys_group,
+                &phys_count,
             )?;
             
             let total_score = result.math.total_score + result.physics.total_score;
