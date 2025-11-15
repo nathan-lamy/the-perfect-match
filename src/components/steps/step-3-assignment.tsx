@@ -188,6 +188,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
       const futureSlotsTransformed = futureSlots.map(slot => ({
         ...slot,
         date: slot.date.replace(/\//g, '-'), // Remplacer / par -
+        subject: slot.subject.includes("Math") ? "Mathématiques" : slot.subject,
       }));
 
       // TODO: Remove debug
