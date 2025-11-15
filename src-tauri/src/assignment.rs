@@ -166,8 +166,15 @@ impl PastColleCache {
 
     #[inline]
     fn has_teacher(&self, name: &str, teacher: &str) -> bool {
+        // Remove common prefixes like "Mme " or "M. "
+        let name = name
+            .strip_prefix("Mme ")
+            .or_else(|| name.strip_prefix("M. "))
+            .unwrap_or(name)
+            .to_uppercase();
+
         self.by_name
-            .get(name)
+            .get(&name)
             .map_or(false, |teachers| teachers.contains(teacher))
     }
 }
