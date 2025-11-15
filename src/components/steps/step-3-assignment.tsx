@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import {
   Card,
@@ -25,10 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { loadCache, loadSession, saveCache } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
-import { Assignment, computeAssignments } from "@/lib/assignment";
 import { DownloadTimetableButton } from "@/lib/export";
 import { Input } from "@/components/ui/input";
 
@@ -36,7 +37,23 @@ interface Step3AssignmentProps {
   onNext: () => void;
 }
 
-const AUTO_RETRY = 100;
+// Rust assignment result types
+interface RustAssignment {
+  student_id: string;
+  slot_id: string | null;
+}
+
+interface RustAssignmentResult {
+  assignments: RustAssignment[];
+  total_score: number;
+}
+
+interface RustComputeResult {
+  math: RustAssignmentResult;
+  physics: RustAssignmentResult;
+}
+
+const DEFAULT_ATTEMPTS = 10;
 
 export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const [students, setStudents] = useState<Student[]>([]);
@@ -46,7 +63,8 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const [pastColles, setPastColles] = useState<PastColle[]>([]);
   const [startDate, setStartDate] = useState("");
 
-  const [autoRetry, setAutoRetry] = useState<number>(AUTO_RETRY);
+  const [numAttempts, setNumAttempts] = useState<number>(DEFAULT_ATTEMPTS);
+  const [computing, setComputing] = useState(false);
 
   const [activeRestrictions, setActiveRestrictions] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("");
@@ -84,8 +102,9 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   }, []);
 
   const [calculated, setCalculated] = useState(false);
-  const [assignment, setAssignment] = useState<any>(null);
+  const [assignment, setAssignment] = useState<RustComputeResult | null>(null);
   const [error, setError] = useState<string>("");
+  const [computationTime, setComputationTime] = useState<number>(0);
 
   const toggleRestriction = (id: string) => {
     setActiveRestrictions((prev) =>
@@ -93,29 +112,39 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
     );
   };
 
-  const formatToPublish = (assignment: Assignment) => {
+  const formatToPublish = (rustAssignment: RustAssignment) => {
     return {
       student_id:
         "E" +
         (students
           .sort((a, b) => a.name.localeCompare(b.name))
-          .findIndex((s) => s.id === assignment.studentId) +
+          .findIndex((s) => s.id === rustAssignment.student_id) +
           1),
-      colle_id: assignment.slotId,
+      colle_id: rustAssignment.slot_id,
     };
   };
 
   const handleCalculate = async () => {
     setError("");
+    setComputing(true);
+    setCalculated(false);
 
     if (!selectedGroup) {
       setError(
         "Veuillez sélectionner un groupe d'élèves pour les colles de Physique."
       );
+      setComputing(false);
+      return;
+    }
+
+    if (numAttempts < 1 || numAttempts > 100) {
+      setError("Le nombre de tentatives doit être entre 1 et 100.");
+      setComputing(false);
       return;
     }
 
     try {
+      // Fetch student data
       const { colles_counts: mathsColles } = await invoke<StudentsData>(
         "get_students",
         {
@@ -131,53 +160,98 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         }
       );
 
+      // Prepare data for Rust
       const activeRestrictionObjects = restrictions.filter((r) =>
         activeRestrictions.includes(r.id)
       );
 
-      let minAssignment = null;
-      let score = Infinity;
+      const physGroup = 
+        studentGroups.find((g) => g.id === selectedGroup)?.student_ids || [];
 
-      for (let i = 0; i < AUTO_RETRY; i++) {
-        const currentAssignment = computeAssignments(
-          students,
-          futureSlots,
-          activeRestrictionObjects,
-          pastColles,
-          mathsColles,
-          studentGroups.find((g) => g.id === selectedGroup)?.student_ids || [],
-          physicsColles
-        );
+      console.log("Calling Rust assignment computation with:", {
+        studentsCount: students.length,
+        slotsCount: futureSlots.length,
+        restrictionsCount: activeRestrictionObjects.length,
+        pastCollesCount: pastColles.length,
+        physGroupSize: physGroup.length,
+        attempts: numAttempts,
+      });
 
-        const currentScore =
-          currentAssignment.math.totalScore +
-          currentAssignment.physics.totalScore;
+      // Call Rust function via Tauri
+      const startTime = Date.now();
+      const result = await invoke<RustComputeResult>("compute_best_assignment", {
+        students,
+        slots: futureSlots,
+        restrictions: activeRestrictionObjects,
+        pastColles,
+        mathCount: mathsColles,
+        physGroup,
+        physCount: physicsColles,
+        n: numAttempts,
+      });
 
-        if (currentScore < score) {
-          score = currentScore;
-          minAssignment = currentAssignment;
-        }
-      }
+      const elapsedTime = (Date.now() - startTime) / 1000;
+      setComputationTime(elapsedTime);
 
-      setAssignment(minAssignment);
+      console.log("Rust assignment completed:", {
+        mathAssignments: result.math.assignments.length,
+        physicsAssignments: result.physics.assignments.length,
+        mathScore: result.math.total_score,
+        physicsScore: result.physics.total_score,
+        totalScore: result.math.total_score + result.physics.total_score,
+        timeSeconds: elapsedTime,
+      });
+
+      setAssignment(result);
       setCalculated(true);
 
+      // Save assignments for publishing
       const collesToPublish = [
-        ...minAssignment!.math.assignments.map(formatToPublish),
-        ...minAssignment!.physics.assignments.map(formatToPublish),
+        ...result.math.assignments
+          .filter(a => a.slot_id !== null)
+          .map(formatToPublish),
+        ...result.physics.assignments
+          .filter(a => a.slot_id !== null)
+          .map(formatToPublish),
       ];
       saveCache("colles_to_publish", collesToPublish);
+
+      // Also save the raw data for Step 4
+      saveCache("students", students);
+      saveCache("future_slots", futureSlots);
+      saveCache("restrictions", activeRestrictionObjects);
+      saveCache("past_colles", pastColles);
+      saveCache("math_count", mathsColles);
+      saveCache("phys_group", physGroup);
+      saveCache("phys_count", physicsColles);
+
     } catch (e) {
       console.error("Assignment calculation failed:", e);
       setError(
-        "Erreur : " +
+        "Erreur lors du calcul de l'attribution : " +
           (e instanceof Error
             ? e.message
-            : "Échec de la récupération des données des élèves")
+            : "Échec inattendu. Vérifiez les logs de la console.")
       );
-      return;
+    } finally {
+      setComputing(false);
     }
   };
+
+  // Calculate stats
+  const mathSlotsCount = futureSlots.filter(
+    (s) => s.subject.includes("Mathématiques") && s.teacher !== "M. MOULIN"
+  ).length * 3 +
+  futureSlots.filter(
+    (s) => s.subject.includes("Mathématiques") && s.teacher === "M. MOULIN"
+  ).length;
+
+  const physicsSlotsCount = futureSlots.filter(
+    (s) => s.subject === "Physique-Chimie"
+  ).length * 3;
+
+  const selectedGroupSize = 
+    studentGroups.find((g) => g.id === selectedGroup)?.student_ids.length || 0;
 
   return (
     <div className="space-y-6">
@@ -186,7 +260,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
           <CardTitle>Étape 3 : Attribuer les colles</CardTitle>
           <CardDescription>
             Configurez les paramètres d'attribution et calculez la répartition
-            optimale
+            optimale avec l'algorithme Rust
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -205,6 +279,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
                       id={`restriction-${restriction.id}`}
                       checked={activeRestrictions.includes(restriction.id)}
                       onCheckedChange={() => toggleRestriction(restriction.id)}
+                      disabled={computing}
                     />
                     <Label
                       htmlFor={`restriction-${restriction.id}`}
@@ -219,7 +294,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             )}
           </div>
 
-          {/* Subject selection */}
+          {/* Date info */}
           <div className="space-y-2">
             <Label>Date de début des colles à venir :</Label>
             <p className="text-sm text-muted-foreground">
@@ -227,34 +302,27 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             </p>
           </div>
 
-          {/* Nombre de créneau de colles */}
+          {/* Slots count */}
           <div className="space-y-2">
             <Label>Nombre de créneaux de colles à venir :</Label>
-            {/* Maths */}
-            <p className="text-sm text-muted-foreground">
-              Mathématiques :{" "}
-              {futureSlots.filter(
-                (s) =>
-                  s.subject.includes("Mathématiques") && s.teacher !== "M. MOULIN"
-              ).length *
-                3 +
-                futureSlots.filter(
-                  (s) =>
-                    s.subject.includes("Mathématiques") && s.teacher === "M. MOULIN"
-                ).length}{" "}
-            </p>
-            {/* Physics */}
-            <p className="text-sm text-muted-foreground">
-              Physique :{" "}
-              {futureSlots.filter((s) => s.subject === "Physique-Chimie")
-                .length * 3}{" "}
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Mathématiques : {mathSlotsCount} places
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Physique : {physicsSlotsCount} places
+              </p>
+            </div>
           </div>
 
           {/* Group selection */}
           <div className="space-y-2">
             <Label>Groupe d'élèves pour les colles de Physique :</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+            <Select 
+              value={selectedGroup} 
+              onValueChange={setSelectedGroup}
+              disabled={computing}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -272,26 +340,33 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             </Select>
           </div>
 
-          {/* Retry number input */}
+          {/* Attempts input */}
           <div className="space-y-2">
-            <Label>Nombre de tentatives automatiques :</Label>
-            <Input
-              type="number"
-              min={1}
-              value={autoRetry}
-              onChange={(e) =>
-                setAutoRetry(parseInt(e.target.value) || AUTO_RETRY)
-              }
-              className="w-24"
-            />
+            <Label>Nombre de tentatives parallèles :</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={numAttempts}
+                onChange={(e) =>
+                  setNumAttempts(parseInt(e.target.value) || DEFAULT_ATTEMPTS)
+                }
+                className="w-24"
+                disabled={computing}
+              />
+              <span className="text-sm text-muted-foreground">
+                (recommandé : 10-20)
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              L'algorithme calcule {numAttempts} attributions en parallèle
+              et sélectionne la meilleure. Temps estimé : ~
+              {Math.ceil(numAttempts / 2)}-{Math.ceil(numAttempts)}s
+            </p>
           </div>
 
-          {/* Small warning text */}
-          <p className="text-xs text-muted-foreground">
-            Avertissement : Le calcul de l'attribution peut prendre plusieurs
-            avec un grand nombre de tentatives ({">"} 100)
-          </p>
-
+          {/* Error display */}
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -299,68 +374,145 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
             </Alert>
           )}
 
-          <Button onClick={handleCalculate}>Calculer l'attribution</Button>
+          {/* Validation warnings */}
+          {mathSlotsCount < students.length && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Attention : Il n'y a que {mathSlotsCount} places en maths pour{" "}
+                {students.length} élèves. Certains élèves ne seront pas
+                assignés.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {physicsSlotsCount < selectedGroupSize && selectedGroup && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Attention : Il n'y a que {physicsSlotsCount} places en physique
+                pour {selectedGroupSize} élèves. Certains élèves ne seront pas
+                assignés.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Calculate button */}
+          <Button 
+            onClick={handleCalculate} 
+            disabled={computing || !selectedGroup}
+            className="w-full"
+          >
+            {computing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Calcul en cours... ({numAttempts} tentatives)
+              </>
+            ) : (
+              "🚀 Calculer l'attribution"
+            )}
+          </Button>
         </CardContent>
       </Card>
 
-      <div className="flex justify-between gap-4">
-        {calculated && assignment && (
+      {/* Download buttons */}
+      {calculated && assignment && (
+        <div className="flex justify-between gap-4">
           <DownloadTimetableButton
-            assignments={assignment.math.assignments}
+            assignments={assignment.math.assignments.map(a => ({
+              studentId: a.student_id,
+              slotId: a.slot_id!,
+              score: 0,
+            }))}
             students={students}
             slots={futureSlots}
             title="Planning des colles - Mathématiques"
             filename="planning_colles_mathematiques.xlsx"
           />
-        )}
 
-        {calculated && assignment && (
           <DownloadTimetableButton
-            assignments={assignment.physics.assignments}
+            assignments={assignment.physics.assignments.map(a => ({
+              studentId: a.student_id,
+              slotId: a.slot_id!,
+              score: 0,
+            }))}
             students={students}
             slots={futureSlots}
             title="Planning des colles - Physique"
             filename="planning_colles_physique.xlsx"
           />
-        )}
-      </div>
+        </div>
+      )}
 
-      {calculated && !error && (
+      {/* Results */}
+      {calculated && !error && assignment && (
         <Card>
           <CardHeader>
-            <CardTitle>Résultats de l'attribution</CardTitle>
+            <CardTitle>✅ Résultats de l'attribution</CardTitle>
+            <CardDescription>
+              Calcul effectué en {computationTime.toFixed(2)}s avec{" "}
+              {numAttempts} tentatives parallèles
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm text-muted-foreground">
-                  Colles attribuées (Maths)
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  Colles Maths
                 </p>
-                <p className="text-2xl font-bold">
-                  {assignment.math.assignments.length}/{students.length}
-                </p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm text-muted-foreground">
-                  Colles attribuées (Physique)
-                </p>
-                <p className="text-2xl font-bold">
-                  {assignment.physics.assignments.length}/
-                  {studentGroups.find((g) => g.id === selectedGroup)
-                    ?.student_ids.length || 0}
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                  {assignment.math.assignments.filter(a => a.slot_id !== null).length}/
+                  {students.length}
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm text-muted-foreground">
-                  Score de distribution
+              <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+                <p className="text-sm text-green-600 dark:text-green-400">
+                  Colles Physique
                 </p>
-                <p className="text-2xl font-bold">
-                  {assignment.math.totalScore + assignment.physics.totalScore}
+                <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                  {assignment.physics.assignments.filter(a => a.slot_id !== null).length}/
+                  {selectedGroupSize}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
+                <p className="text-sm text-purple-600 dark:text-purple-400">
+                  Score total
+                </p>
+                <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                  {(assignment.math.total_score + 
+                    assignment.physics.total_score).toLocaleString()}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
+                <p className="text-sm text-orange-600 dark:text-orange-400">
+                  Temps de calcul
+                </p>
+                <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                  {computationTime.toFixed(1)}s
                 </p>
               </div>
             </div>
-            <Button onClick={onNext} className="w-full">
-              Passer à la publication
+
+            {/* Detailed scores */}
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div>
+                <p className="text-sm font-medium mb-2">Détails Mathématiques</p>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>Score : {assignment.math.total_score.toLocaleString()}</p>
+                  <p>Assignments : {assignment.math.assignments.length}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-2">Détails Physique</p>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>Score : {assignment.physics.total_score.toLocaleString()}</p>
+                  <p>Assignments : {assignment.physics.assignments.length}</p>
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={onNext} className="w-full" size="lg">
+              ➡️ Passer à la publication
             </Button>
           </CardContent>
         </Card>
