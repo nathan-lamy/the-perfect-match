@@ -101,13 +101,13 @@ fn get_day_of_week(date_str: &str) -> String {
     if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
         let weekday = date.weekday();
         match weekday {
-            Weekday::Mon => "Lundi",
-            Weekday::Tue => "Mardi",
-            Weekday::Wed => "Mercredi",
-            Weekday::Thu => "Jeudi",
-            Weekday::Fri => "Vendredi",
-            Weekday::Sat => "Samedi",
-            Weekday::Sun => "Dimanche",
+            Weekday::Mon => "Monday",
+            Weekday::Tue => "Tuesday",
+            Weekday::Wed => "Wednesday",
+            Weekday::Thu => "Thursday",
+            Weekday::Fri => "Friday",
+            Weekday::Sat => "Saturday",
+            Weekday::Sun => "Sunday",
         }
         .to_string()
     } else {
