@@ -5,6 +5,7 @@ mod session;
 mod store;
 mod students;
 mod create_colle;
+mod assignment;
 
 use std::vec;
 
