@@ -18,6 +18,8 @@ use create_colle::{post_timetable_dashboard, post_timetable_choice_students};
 
 use crate::students::StudentsData;
 
+use assignment::compute_best_assignment
+
 /* === AUTH === */
 #[tauri::command(async)]
 async fn authenticate_and_save(
@@ -94,6 +96,7 @@ pub fn run() {
             fetch_future_colles,
             post_timetable_dashboard,
             post_timetable_choice_students,
+            compute_best_assignment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
