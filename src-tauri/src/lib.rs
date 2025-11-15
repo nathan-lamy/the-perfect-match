@@ -19,7 +19,7 @@ use create_colle::{post_timetable_dashboard, post_timetable_choice_students};
 
 use crate::students::StudentsData;
 
-use assignment::compute_best_assignment
+use assignment::compute_best_assignment;
 
 /* === AUTH === */
 #[tauri::command(async)]
