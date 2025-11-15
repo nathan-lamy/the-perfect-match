@@ -17,6 +17,7 @@ import type {
   FutureSlot,
   StudentsData,
   PastColle,
+  CollesCount,
 } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -175,8 +176,22 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         pastCollesCount: pastColles.length,
         physGroupSize: physGroup.length,
         attempts: numAttempts,
-        mathCount: mathsColles,
       });
+
+      // Create a map colles functions that replace data.student (type Student) to student full name (last + first)
+      function cleanNames(colles: CollesCount): CollesCount {
+        return {
+          header: colles.header,
+          data: colles.data.map(({ student, counts }) => ({
+            // @ts-expect-error TODO: Fix wrong Rust types
+            student: `${student.last_name} ${student.first_name}`,
+            counts,
+          })),
+        };
+      }
+
+      // TODO: Remove debug
+      console.log(cleanNames(mathsColles))
 
       // Call Rust function via Tauri
       const startTime = Date.now();
@@ -185,9 +200,9 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         slots: futureSlots,
         restrictions: activeRestrictionObjects,
         pastColles,
-        mathCount: JSON.stringify(mathsColles),
+        mathCount: cleanNames(mathsColles),
         physGroup,
-        physCount: physicsColles,
+        physCount: cleanNames(physicsColles),
         n: numAttempts,
       });
 
