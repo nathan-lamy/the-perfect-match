@@ -53,7 +53,7 @@ interface RustComputeResult {
   physics: RustAssignmentResult;
 }
 
-const DEFAULT_ATTEMPTS = 10;
+const DEFAULT_ATTEMPTS = 100;
 
 export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const [students, setStudents] = useState<Student[]>([]);
