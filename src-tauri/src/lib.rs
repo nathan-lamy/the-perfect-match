@@ -19,7 +19,11 @@ use create_colle::{post_timetable_dashboard, post_timetable_choice_students};
 
 use crate::students::StudentsData;
 
-use assignment::compute_best_assignment;
+use assignment::{
+    Student, FutureSlot, Restriction, PastColle, 
+    StudentCounts, CollesCount, Assignment, 
+    AssignmentResult, ComputeResult
+};
 
 /* === AUTH === */
 #[tauri::command(async)]
@@ -71,6 +75,85 @@ async fn get_students(
     let students = students_data.students;
     save_students(app, students)?;
     Ok(data)
+}
+
+/// Tauri command wrapper for compute_best_assignment
+/// 
+/// This function is called from the frontend via invoke("compute_best_assignment", {...})
+/// It takes ownership of the data (Vec instead of &[]) because Tauri passes owned data
+/// 
+/// # Arguments
+/// * `students` - List of students
+/// * `slots` - List of available time slots
+/// * `restrictions` - List of restrictions (unavailabilities)
+/// * `past_colles` - History of previous colles
+/// * `math_count` - Count of math colles per teacher
+/// * `phys_group` - IDs of students in physics group
+/// * `phys_count` - Count of physics colles per teacher
+/// * `n` - Number of parallel attempts to make
+/// 
+/// # Returns
+/// Result containing the best assignment or an error message
+#[tauri::command]
+pub async fn compute_best_assignment(
+    students: Vec<Student>,
+    slots: Vec<FutureSlot>,
+    restrictions: Vec<Restriction>,
+    past_colles: Vec<PastColle>,
+    math_count: CollesCount,
+    phys_group: Vec<String>,
+    phys_count: CollesCount,
+    n: usize,
+) -> Result<ComputeResult, String> {
+    // Log for debugging
+    println!("Starting assignment computation with {} attempts", n);
+    println!("Students: {}, Slots: {}, Restrictions: {}", 
+             students.len(), slots.len(), restrictions.len());
+    
+    // Validate inputs
+    if students.is_empty() {
+        return Err("Aucun étudiant fourni".to_string());
+    }
+    if slots.is_empty() {
+        return Err("Aucun créneau fourni".to_string());
+    }
+    if n == 0 {
+        return Err("Le nombre d'essais doit être supérieur à 0".to_string());
+    }
+    if n > 100 {
+        return Err("Le nombre d'essais ne peut pas dépasser 100 pour éviter une surcharge".to_string());
+    }
+
+    // Run the computation in a blocking task to avoid blocking the async runtime
+    // This is important because the computation is CPU-intensive
+    let result = tokio::task::spawn_blocking(move || {
+        assignment_algorithm::compute_best_assignment(
+            students,
+            slots,
+            restrictions,
+            past_colles,
+            math_count,
+            phys_group,
+            phys_count,
+            n,
+        )
+    })
+    .await
+    .map_err(|e| format!("Erreur lors de l'exécution du calcul: {}", e))?;
+
+    // Return the result or an error
+    match result {
+        Some(compute_result) => {
+            println!("Assignment computation successful!");
+            println!("Math assignments: {}, Physics assignments: {}", 
+                     compute_result.math.assignments.len(),
+                     compute_result.physics.assignments.len());
+            Ok(compute_result)
+        }
+        None => {
+            Err("Impossible de trouver une attribution valide après tous les essais. Vérifiez les contraintes (restrictions, créneaux disponibles).".to_string())
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
