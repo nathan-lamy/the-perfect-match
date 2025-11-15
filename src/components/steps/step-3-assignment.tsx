@@ -179,7 +179,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
 
       // Call Rust function via Tauri
       const startTime = Date.now();
-      const result = await invoke<RustComputeResult>("compute_best_assignment", {
+      const result = await invoke<RustComputeResult>("compute_assignment", {
         students,
         slots: futureSlots,
         restrictions: activeRestrictionObjects,
