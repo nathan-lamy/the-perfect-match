@@ -175,6 +175,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         pastCollesCount: pastColles.length,
         physGroupSize: physGroup.length,
         attempts: numAttempts,
+        mathCount: mathsColles,
       });
 
       // Call Rust function via Tauri
@@ -184,7 +185,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         slots: futureSlots,
         restrictions: activeRestrictionObjects,
         pastColles,
-        mathCount: mathsColles,
+        mathCount: JSON.stringify(mathsColles),
         physGroup,
         physCount: physicsColles,
         n: numAttempts,
