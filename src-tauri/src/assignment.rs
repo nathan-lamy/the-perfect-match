@@ -166,15 +166,8 @@ impl PastColleCache {
 
     #[inline]
     fn has_teacher(&self, name: &str, teacher: &str) -> bool {
-        // Remove common prefixes like "Mme " or "M. "
-        let name = name
-            .strip_prefix("Mme ")
-            .or_else(|| name.strip_prefix("M. "))
-            .unwrap_or(name)
-            .to_uppercase();
-
         self.by_name
-            .get(&name)
+            .get(name)
             .map_or(false, |teachers| teachers.contains(teacher))
     }
 }
@@ -212,8 +205,15 @@ impl CollesCountCache {
 
     #[inline]
     fn get_count(&self, student_name: &str, teacher: &str) -> Option<i32> {
+        // Remove common prefixes and normalize case
+        let student_name = student_name
+            .strip_prefix("Mme ")
+            .or_else(|| student_name.strip_prefix("M. "))
+            .unwrap_or(student_name)
+            .to_uppercase();
+
         let teacher_idx = self.teacher_index.get(teacher)?;
-        let counts = self.student_counts.get(student_name)?;
+        let counts = self.student_counts.get(&student_name)?;
         counts.get(*teacher_idx).copied()
     }
 }
