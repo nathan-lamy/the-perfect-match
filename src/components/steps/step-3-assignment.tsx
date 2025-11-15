@@ -166,7 +166,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         activeRestrictions.includes(r.id)
       );
 
-      const physGroup = 
+      const physGroup =
         studentGroups.find((g) => g.id === selectedGroup)?.student_ids || [];
 
       console.log("Calling Rust assignment computation with:", {
@@ -190,14 +190,21 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         };
       }
 
+      // Fix date format for Rust
+      const futureSlotsTransformed = futureSlots.map(slot => ({
+        ...slot,
+        date: slot.date.replace(/\//g, '-'), // Remplacer / par -
+      }));
+
       // TODO: Remove debug
-      console.log(cleanNames(mathsColles))
+      console.log(cleanNames(mathsColles));
+      console.log(futureSlotsTransformed);
 
       // Call Rust function via Tauri
       const startTime = Date.now();
       const result = await invoke<RustComputeResult>("compute_assignment", {
         students,
-        slots: futureSlots,
+        slots: futureSlotsTransformed,
         restrictions: activeRestrictionObjects,
         pastColles,
         mathCount: cleanNames(mathsColles),
@@ -245,9 +252,9 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
       console.error("Assignment calculation failed:", e);
       setError(
         "Erreur lors du calcul de l'attribution : " +
-          (e instanceof Error
-            ? e.message
-            : "Échec inattendu. Vérifiez les logs de la console.")
+        (e instanceof Error
+          ? e.message
+          : "Échec inattendu. Vérifiez les logs de la console.")
       );
     } finally {
       setComputing(false);
@@ -258,15 +265,15 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
   const mathSlotsCount = futureSlots.filter(
     (s) => s.subject.includes("Mathématiques") && s.teacher !== "M. MOULIN"
   ).length * 3 +
-  futureSlots.filter(
-    (s) => s.subject.includes("Mathématiques") && s.teacher === "M. MOULIN"
-  ).length;
+    futureSlots.filter(
+      (s) => s.subject.includes("Mathématiques") && s.teacher === "M. MOULIN"
+    ).length;
 
   const physicsSlotsCount = futureSlots.filter(
     (s) => s.subject === "Physique-Chimie"
   ).length * 3;
 
-  const selectedGroupSize = 
+  const selectedGroupSize =
     studentGroups.find((g) => g.id === selectedGroup)?.student_ids.length || 0;
 
   return (
@@ -334,8 +341,8 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
           {/* Group selection */}
           <div className="space-y-2">
             <Label>Groupe d'élèves pour les colles de Physique :</Label>
-            <Select 
-              value={selectedGroup} 
+            <Select
+              value={selectedGroup}
               onValueChange={setSelectedGroup}
               disabled={computing}
             >
@@ -414,8 +421,8 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
           )}
 
           {/* Calculate button */}
-          <Button 
-            onClick={handleCalculate} 
+          <Button
+            onClick={handleCalculate}
             disabled={computing || !selectedGroup}
             className="w-full"
           >
@@ -495,7 +502,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
                   Score total
                 </p>
                 <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                  {(assignment.math.total_score + 
+                  {(assignment.math.total_score +
                     assignment.physics.total_score).toLocaleString()}
                 </p>
               </div>

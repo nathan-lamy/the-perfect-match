@@ -1,10 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use chrono::{Datelike, NaiveDate, Weekday};
+use pathfinding::matrix::Matrix;
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use chrono::{Datelike, NaiveDate, Weekday};
-use tracing::{debug, info, warn};
-use pathfinding::matrix::Matrix;
+use std::collections::{HashMap, HashSet};
 
 // Constants - could be moved to a config file
 const RESTRICTION_PENALTY: i32 = 12_000_000;
@@ -109,10 +108,11 @@ fn get_day_of_week(date_str: &str) -> String {
             Weekday::Fri => "Vendredi",
             Weekday::Sat => "Samedi",
             Weekday::Sun => "Dimanche",
-        }.to_string()
+        }
+        .to_string()
     } else {
         // Fallback: return the date string itself
-        warn!("Failed to parse date: {}", date_str);
+        eprintln!("Failed to parse date: {}", date_str);
         date_str.to_string()
     }
 }
@@ -125,19 +125,20 @@ struct RestrictionCache {
 impl RestrictionCache {
     fn new(restrictions: &[Restriction]) -> Self {
         let mut by_student: HashMap<String, Vec<usize>> = HashMap::new();
-        
+
         for (idx, restriction) in restrictions.iter().enumerate() {
             for student_id in &restriction.student_ids {
-                by_student.entry(student_id.clone())
+                by_student
+                    .entry(student_id.clone())
                     .or_insert_with(Vec::new)
                     .push(idx);
             }
         }
-        
-        debug!("Built restriction cache with {} students", by_student.len());
+
+        println!("Built restriction cache with {} students", by_student.len());
         Self { by_student }
     }
-    
+
     #[inline]
     fn get_restrictions_for_student(&self, student_id: &str) -> Option<&[usize]> {
         self.by_student.get(student_id).map(|v| v.as_slice())
@@ -151,21 +152,22 @@ struct PastColleCache {
 impl PastColleCache {
     fn new(past_colles: &[PastColle]) -> Self {
         let mut by_name: HashMap<String, HashSet<String>> = HashMap::new();
-        
+
         for past_colle in past_colles {
             by_name.insert(
                 past_colle.name.clone(),
                 past_colle.teachers.iter().cloned().collect(),
             );
         }
-        
-        debug!("Built past colle cache with {} students", by_name.len());
+
+        println!("Built past colle cache with {} students", by_name.len());
         Self { by_name }
     }
-    
+
     #[inline]
     fn has_teacher(&self, name: &str, teacher: &str) -> bool {
-        self.by_name.get(name)
+        self.by_name
+            .get(name)
             .map_or(false, |teachers| teachers.contains(teacher))
     }
 }
@@ -177,20 +179,30 @@ struct CollesCountCache {
 
 impl CollesCountCache {
     fn new(colles_count: &CollesCount) -> Self {
-        let teacher_index: HashMap<String, usize> = colles_count.header.iter()
+        let teacher_index: HashMap<String, usize> = colles_count
+            .header
+            .iter()
             .enumerate()
             .map(|(i, t)| (t.clone(), i))
             .collect();
-        
-        let student_counts: HashMap<String, Vec<i32>> = colles_count.data.iter()
+
+        let student_counts: HashMap<String, Vec<i32>> = colles_count
+            .data
+            .iter()
             .map(|sc| (sc.student.clone(), sc.counts.clone()))
             .collect();
-        
-        debug!("Built colles count cache with {} teachers and {} students", 
-               teacher_index.len(), student_counts.len());
-        Self { teacher_index, student_counts }
+
+        println!(
+            "Built colles count cache with {} teachers and {} students",
+            teacher_index.len(),
+            student_counts.len()
+        );
+        Self {
+            teacher_index,
+            student_counts,
+        }
     }
-    
+
     #[inline]
     fn get_count(&self, student_name: &str, teacher: &str) -> Option<i32> {
         let teacher_idx = self.teacher_index.get(teacher)?;
@@ -231,7 +243,7 @@ fn has_restriction_conflict(
             if restriction.day == slot_day {
                 let rest_start = parse_time(&restriction.start_time);
                 let rest_end = parse_time(&restriction.end_time);
-                
+
                 if !(slot_end <= rest_start - TIME_MARGIN || slot_start >= rest_end + TIME_MARGIN) {
                     return true;
                 }
@@ -283,7 +295,7 @@ fn compute_score(
     // Total colles penalty
     if let Some(count) = colles_count_cache.get_count(&student.name, &slot.teacher) {
         score += count * TOTAL_COLLES_WEIGHT;
-        
+
         // HOT FIX: Extra weight for M. MOULIN
         if slot.teacher == "M. MOULIN" {
             score += count * TOTAL_COLLES_WEIGHT * 10;
@@ -291,7 +303,8 @@ fn compute_score(
     }
 
     // Noise for randomization
-    let noise_upper_bound = ((TOTAL_COLLES_WEIGHT / 10) as f64 * 2_f64.powi(noise_factor as i32)) as i32;
+    let noise_upper_bound =
+        ((TOTAL_COLLES_WEIGHT / 10) as f64 * 2_f64.powi(noise_factor as i32)) as i32;
     let mut rng = rand::thread_rng();
     let noise = rng.gen_range(0..noise_upper_bound.max(1));
     score += noise;
@@ -309,55 +322,79 @@ fn make_matrix(
     previous_assignments: &[AssignmentWithSlot],
     noise_factor: u32,
 ) -> Vec<Vec<i32>> {
-    info!("Creating cost matrix: {} students × {} slot positions", 
-          students.len(), 
-          slots.iter().map(|s| if s.teacher == "M. MOULIN" { 1 } else { PLACES_BY_SLOT }).sum::<usize>());
-    
+    println!(
+        "Creating cost matrix: {} students × {} slot positions",
+        students.len(),
+        slots
+            .iter()
+            .map(|s| if s.teacher == "M. MOULIN" {
+                1
+            } else {
+                PLACES_BY_SLOT
+            })
+            .sum::<usize>()
+    );
+
     // Build caches
     let restriction_cache = RestrictionCache::new(restrictions);
     let past_colle_cache = PastColleCache::new(past_colles);
     let colles_count_cache = CollesCountCache::new(total_colles);
-    
+
     // Build previous assignments map for O(1) lookup
     let prev_assignments_map: HashMap<String, String> = previous_assignments
         .iter()
-        .filter_map(|a| a.slot.as_ref().map(|s| (a.student_id.clone(), s.date.clone())))
+        .filter_map(|a| {
+            a.slot
+                .as_ref()
+                .map(|s| (a.student_id.clone(), s.date.clone()))
+        })
         .collect();
-    
+
     // Precompute slot information
-    let slot_infos: Vec<SlotInfo> = slots.iter()
+    let slot_infos: Vec<SlotInfo> = slots
+        .iter()
         .map(|slot| SlotInfo {
             day: get_day_of_week(&slot.date),
             start_time: parse_time(&slot.start_hour),
             end_time: parse_time(&slot.end_hour),
-            places: if slot.teacher == "M. MOULIN" { 1 } else { PLACES_BY_SLOT },
+            places: if slot.teacher == "M. MOULIN" {
+                1
+            } else {
+                PLACES_BY_SLOT
+            },
         })
         .collect();
-    
+
     // Create matrix
     let mut matrix = Vec::new();
-    
+
     for (slot, slot_info) in slots.iter().zip(slot_infos.iter()) {
         for _ in 0..slot_info.places {
-            let row: Vec<i32> = students.iter()
-                .map(|student| compute_score(
-                    student,
-                    slot,
-                    slot_info,
-                    restrictions,
-                    &restriction_cache,
-                    &past_colle_cache,
-                    &colles_count_cache,
-                    &prev_assignments_map,
-                    noise_factor,
-                ))
+            let row: Vec<i32> = students
+                .iter()
+                .map(|student| {
+                    compute_score(
+                        student,
+                        slot,
+                        slot_info,
+                        restrictions,
+                        &restriction_cache,
+                        &past_colle_cache,
+                        &colles_count_cache,
+                        &prev_assignments_map,
+                        noise_factor,
+                    )
+                })
                 .collect();
             matrix.push(row);
         }
     }
 
-    debug!("Matrix created with dimensions {}×{}", matrix.len(), 
-           matrix.first().map_or(0, |r| r.len()));
+    println!(
+        "Matrix created with dimensions {}×{}",
+        matrix.len(),
+        matrix.first().map_or(0, |r| r.len())
+    );
     matrix
 }
 
@@ -370,19 +407,17 @@ fn format_assignments(
     raw_assignments
         .iter()
         .enumerate()
-        .map(|(slot_index, student_index)| {
-            match student_index {
-                None => Assignment {
-                    student_id: String::new(),
-                    slot_id: None,
-                },
-                Some(idx) => {
-                    let student = &students[*idx];
-                    let slot = &slots[slot_index / PLACES_BY_SLOT];
-                    Assignment {
-                        student_id: student.id.clone(),
-                        slot_id: Some(slot.id.clone()),
-                    }
+        .map(|(slot_index, student_index)| match student_index {
+            None => Assignment {
+                student_id: String::new(),
+                slot_id: None,
+            },
+            Some(idx) => {
+                let student = &students[*idx];
+                let slot = &slots[slot_index / PLACES_BY_SLOT];
+                Assignment {
+                    student_id: student.id.clone(),
+                    slot_id: Some(slot.id.clone()),
                 }
             }
         })
@@ -396,21 +431,18 @@ fn generate_restrictions_from_assignments(
     assignments: &[Assignment],
 ) -> Vec<Restriction> {
     // Build lookup maps for O(1) access
-    let slot_map: HashMap<&str, &FutureSlot> = slots.iter()
-        .map(|s| (s.id.as_str(), s))
-        .collect();
-    
-    let student_map: HashMap<&str, &Student> = students.iter()
-        .map(|s| (s.id.as_str(), s))
-        .collect();
-    
+    let slot_map: HashMap<&str, &FutureSlot> = slots.iter().map(|s| (s.id.as_str(), s)).collect();
+
+    let student_map: HashMap<&str, &Student> =
+        students.iter().map(|s| (s.id.as_str(), s)).collect();
+
     let restrictions: Vec<Restriction> = assignments
         .iter()
         .filter_map(|assignment| {
             let slot = slot_map.get(assignment.slot_id.as_ref()?.as_str())?;
             let student = student_map.get(assignment.student_id.as_str());
             let student_name = student.map(|s| s.name.as_str()).unwrap_or("Unknown");
-            
+
             Some(Restriction {
                 id: format!("auto-restriction-{}-{}", slot.id, assignment.student_id),
                 activity_name: format!("Assigned Slot for {}", student_name),
@@ -421,8 +453,11 @@ fn generate_restrictions_from_assignments(
             })
         })
         .collect();
-    
-    debug!("Generated {} auto-restrictions from assignments", restrictions.len());
+
+    println!(
+        "Generated {} auto-restrictions from assignments",
+        restrictions.len()
+    );
     restrictions
 }
 
@@ -430,17 +465,17 @@ fn generate_restrictions_from_assignments(
 fn min_weight_assign(matrix: &[Vec<i32>]) -> (Vec<Option<usize>>, i32) {
     let rows = matrix.len();
     let cols = if rows > 0 { matrix[0].len() } else { 0 };
-    
+
     if rows == 0 || cols == 0 {
-        warn!("Empty matrix provided to munkres algorithm");
+        eprintln!("Empty matrix provided to munkres algorithm");
         return (vec![], 0);
     }
-    
-    debug!("Running Hungarian algorithm on {}×{} matrix", rows, cols);
-    
+
+    println!("Running Hungarian algorithm on {}×{} matrix", rows, cols);
+
     // Convert to f64 for munkres crate (it expects f64)
     let weights = matrix;
-    
+
     // Flatten the weights WITHOUT consuming it
     let rows = weights.len();
     let cols = weights[0].len();
@@ -452,21 +487,23 @@ fn min_weight_assign(matrix: &[Vec<i32>]) -> (Vec<Option<usize>>, i32) {
         panic!("Failed to create matrix for munkres: {}", e);
     });
     let (cost, assignments_vec) = pathfinding::kuhn_munkres::kuhn_munkres(&mat);
-    
+
     // Convert back to our format
     let mut assignments = vec![None; rows];
     let mut total_weight = 0;
-    
+
     for (row_idx, &col_idx) in assignments_vec.iter().enumerate() {
         if row_idx < rows && col_idx < cols {
             assignments[row_idx] = Some(col_idx);
             total_weight += matrix[row_idx][col_idx];
         }
     }
-    
-    info!("Hungarian algorithm completed with total cost: {} (munkres cost: {})", 
-          total_weight, cost as i32);
-    
+
+    println!(
+        "Hungarian algorithm completed with total cost: {} (munkres cost: {})",
+        total_weight, cost as i32
+    );
+
     (assignments, total_weight)
 }
 
@@ -482,47 +519,59 @@ where
     F2: Fn(u32, &[Restriction], &[Assignment]) -> Vec<Vec<i32>>,
 {
     for noise_factor in 0..MAX_RETRIES as u32 {
-        info!("Attempt {}/{} with noise factor {}", 
-              noise_factor + 1, MAX_RETRIES, noise_factor);
-        
+        println!(
+            "Attempt {}/{} with noise factor {}",
+            noise_factor + 1,
+            MAX_RETRIES,
+            noise_factor
+        );
+
         let matrix1 = make_matrix1(noise_factor);
         let (a1, weight1) = min_weight_assign(&matrix1);
 
-        info!("Math assignment: weight = {}, threshold = {}", weight1, MAX_SCORE);
-        
+        println!(
+            "Math assignment: weight = {}, threshold = {}",
+            weight1, MAX_SCORE
+        );
+
         if weight1 < MAX_SCORE {
             let fa1 = format_assignments(students, math_colles, &a1);
-            let fa1_filtered: Vec<Assignment> = fa1.into_iter()
-                .filter(|a| a.slot_id.is_some())
-                .collect();
-            
-            info!("First assignment successful with {} valid assignments", fa1_filtered.len());
-            
-            let new_restrictions = generate_restrictions_from_assignments(
-                students,
-                math_colles,
-                &fa1_filtered,
+            let fa1_filtered: Vec<Assignment> =
+                fa1.into_iter().filter(|a| a.slot_id.is_some()).collect();
+
+            println!(
+                "First assignment successful with {} valid assignments",
+                fa1_filtered.len()
             );
-            
+
+            let new_restrictions =
+                generate_restrictions_from_assignments(students, math_colles, &fa1_filtered);
+
             let matrix2 = make_matrix2(noise_factor, &new_restrictions, &fa1_filtered);
             let (a2, weight2) = min_weight_assign(&matrix2);
 
-            info!("Physics assignment: weight = {}, threshold = {}", weight2, MAX_SCORE);
-            
+            println!(
+                "Physics assignment: weight = {}, threshold = {}",
+                weight2, MAX_SCORE
+            );
+
             if weight2 < MAX_SCORE {
-                info!("Both assignments successful!");
+                println!("Both assignments successful!");
                 return Some((a1, weight1, a2, weight2));
             } else {
-                warn!("Physics assignment failed with weight {}", weight2);
+                eprintln!("Physics assignment failed with weight {}", weight2);
             }
         } else {
-            warn!("Math assignment failed with weight {}", weight1);
+            eprintln!("Math assignment failed with weight {}", weight1);
         }
 
-        debug!("Retrying with increased noise factor");
+        println!("Retrying with increased noise factor");
     }
 
-    warn!("Failed to find valid assignment after {} attempts", MAX_RETRIES);
+    eprintln!(
+        "Failed to find valid assignment after {} attempts",
+        MAX_RETRIES
+    );
     None
 }
 
@@ -536,29 +585,35 @@ pub fn compute_assignments(
     phys_group: &[String],
     phys_count: &CollesCount,
 ) -> Option<ComputeResult> {
-    info!("Starting assignment computation");
-    info!("Total students: {}", students.len());
-    info!("Total slots: {}", slots.len());
-    info!("Total restrictions: {}", restrictions.len());
-    
+    println!("Starting assignment computation");
+    println!("Total students: {}", students.len());
+    println!("Total slots: {}", slots.len());
+    println!("Total restrictions: {}", restrictions.len());
+
     // Filter math and physics colles
     let math_colles: Vec<FutureSlot> = slots
         .iter()
         .filter(|s| s.subject.contains("Mathématiques"))
         .cloned()
         .collect();
-    
+
     let phys_colles: Vec<FutureSlot> = slots
         .iter()
         .filter(|s| s.subject.contains("Physique-Chimie"))
         .cloned()
         .collect();
 
-    info!("Math colles: {} slots ({} positions)", 
-          math_colles.len(), math_colles.len() * PLACES_BY_SLOT);
-    info!("Physics colles: {} slots ({} positions)", 
-          phys_colles.len(), phys_colles.len() * PLACES_BY_SLOT);
-    info!("Physics group: {} students", phys_group.len());
+    println!(
+        "Math colles: {} slots ({} positions)",
+        math_colles.len(),
+        math_colles.len() * PLACES_BY_SLOT
+    );
+    println!(
+        "Physics colles: {} slots ({} positions)",
+        phys_colles.len(),
+        phys_colles.len() * PLACES_BY_SLOT
+    );
+    println!("Physics group: {} students", phys_group.len());
 
     // Create matrix generators
     let make_math_matrix = |noise_factor: u32| {
@@ -582,15 +637,16 @@ pub fn compute_assignments(
     let make_phys_matrix = |noise_factor: u32,
                             new_restrictions: &[Restriction],
                             previous_assignments: &[Assignment]| {
-        let slot_map: HashMap<&str, &FutureSlot> = slots.iter()
-            .map(|s| (s.id.as_str(), s))
-            .collect();
-        
+        let slot_map: HashMap<&str, &FutureSlot> =
+            slots.iter().map(|s| (s.id.as_str(), s)).collect();
+
         let math_assignments: Vec<AssignmentWithSlot> = previous_assignments
             .iter()
             .map(|pa| AssignmentWithSlot {
                 student_id: pa.student_id.clone(),
-                slot: pa.slot_id.as_ref()
+                slot: pa
+                    .slot_id
+                    .as_ref()
                     .and_then(|id| slot_map.get(id.as_str()))
                     .map(|&s| s.clone()),
             })
@@ -611,7 +667,7 @@ pub fn compute_assignments(
     };
 
     // Get assignments
-    let (math_raw, math_score, phys_raw, phys_score) = 
+    let (math_raw, math_score, phys_raw, phys_score) =
         get_assignments(students, &math_colles, make_math_matrix, make_phys_matrix)?;
 
     let math_assignments = format_assignments(students, &math_colles, &math_raw);
@@ -619,22 +675,36 @@ pub fn compute_assignments(
 
     let missing_math: Vec<&Student> = students
         .iter()
-        .filter(|s| !math_assignments.iter().any(|a| a.student_id == s.id && a.slot_id.is_some()))
+        .filter(|s| {
+            !math_assignments
+                .iter()
+                .any(|a| a.student_id == s.id && a.slot_id.is_some())
+        })
         .collect();
-    
+
     let missing_phys: Vec<&Student> = phys_students
         .iter()
-        .filter(|s| !phys_assignments.iter().any(|a| a.student_id == s.id && a.slot_id.is_some()))
+        .filter(|s| {
+            !phys_assignments
+                .iter()
+                .any(|a| a.student_id == s.id && a.slot_id.is_some())
+        })
         .collect();
 
     if !missing_math.is_empty() {
-        warn!("Missing math assignments for {} students", missing_math.len());
+        eprintln!(
+            "Missing math assignments for {} students",
+            missing_math.len()
+        );
     }
     if !missing_phys.is_empty() {
-        warn!("Missing physics assignments for {} students", missing_phys.len());
+        eprintln!(
+            "Missing physics assignments for {} students",
+            missing_phys.len()
+        );
     }
 
-    info!("Assignment computation completed successfully");
+    println!("Assignment computation completed successfully");
 
     Some(ComputeResult {
         math: AssignmentResult {
@@ -666,15 +736,18 @@ pub fn compute_best_assignment(
     phys_count: CollesCount,
     n: usize,
 ) -> Option<ComputeResult> {
-    info!("Generating {} assignments in parallel to find the best one", n);
-    
+    println!(
+        "Generating {} assignments in parallel to find the best one",
+        n
+    );
+
     // Use rayon for parallel computation
     let results: Vec<(ComputeResult, i32)> = (0..n)
         .into_par_iter()
         .filter_map(|i| {
             let thread_id = rayon::current_thread_index().unwrap_or(0);
-            info!("Thread {}: Starting attempt {}/{}", thread_id, i + 1, n);
-            
+            println!("Thread {}: Starting attempt {}/{}", thread_id, i + 1, n);
+
             let result = compute_assignments(
                 &students,
                 &slots,
@@ -684,30 +757,36 @@ pub fn compute_best_assignment(
                 &phys_group,
                 &phys_count,
             )?;
-            
+
             let total_score = result.math.total_score + result.physics.total_score;
-            info!("Thread {}: Assignment {} completed with total score: {}", 
-                  thread_id, i + 1, total_score);
-            
+            println!(
+                "Thread {}: Assignment {} completed with total score: {}",
+                thread_id,
+                i + 1,
+                total_score
+            );
+
             Some((result, total_score))
         })
         .collect();
-    
+
     if results.is_empty() {
-        warn!("Failed to generate any valid assignment");
+        eprintln!("Failed to generate any valid assignment");
         return None;
     }
-    
+
     // Find the best result
-    let (best_result, best_score) = results.into_iter()
-        .min_by_key(|(_, score)| *score)?;
-    
-    info!("=== Best Assignment Selected ===");
-    info!("Math score: {}", best_result.math.total_score);
-    info!("Physics score: {}", best_result.physics.total_score);
-    info!("Total score: {}", best_score);
-    info!("Math assignments: {}", best_result.math.assignments.len());
-    info!("Physics assignments: {}", best_result.physics.assignments.len());
-    
+    let (best_result, best_score) = results.into_iter().min_by_key(|(_, score)| *score)?;
+
+    println!("=== Best Assignment Selected ===");
+    println!("Math score: {}", best_result.math.total_score);
+    println!("Physics score: {}", best_result.physics.total_score);
+    println!("Total score: {}", best_score);
+    println!("Math assignments: {}", best_result.math.assignments.len());
+    println!(
+        "Physics assignments: {}",
+        best_result.physics.assignments.len()
+    );
+
     Some(best_result)
 }
