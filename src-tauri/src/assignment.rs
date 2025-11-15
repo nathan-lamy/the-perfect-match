@@ -206,13 +206,13 @@ impl CollesCountCache {
     #[inline]
     fn get_count(&self, student_name: &str, teacher: &str) -> Option<i32> {
         // Remove common prefixes and normalize case
-        let student_name = student_name
+        let teacher_name = teacher
             .strip_prefix("Mme ")
-            .or_else(|| student_name.strip_prefix("M. "))
-            .unwrap_or(student_name)
+            .or_else(|| teacher.strip_prefix("M. "))
+            .unwrap_or(teacher)
             .to_uppercase();
 
-        let teacher_idx = self.teacher_index.get(teacher)?;
+        let teacher_idx = self.teacher_index.get(teacher_name)?;
         let counts = self.student_counts.get(&student_name)?;
         counts.get(*teacher_idx).copied()
     }
@@ -300,7 +300,7 @@ fn compute_score(
     }
 
     // Total colles penalty
-    if let Some(count) = colles_count_cache.get_count(&student.name, &slot.teacher) {
+    if let Some(count) = colles_count_cache.get_count(&student.full_name(), &slot.teacher) {
         score += count * TOTAL_COLLES_WEIGHT;
 
         // HOT FIX: Extra weight for M. MOULIN

@@ -208,6 +208,8 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         n: numAttempts,
       });
 
+      console.log(result);
+
       const elapsedTime = (Date.now() - startTime) / 1000;
       setComputationTime(elapsedTime);
 
