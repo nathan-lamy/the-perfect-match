@@ -212,7 +212,7 @@ impl CollesCountCache {
             .unwrap_or(teacher)
             .to_uppercase();
 
-        let teacher_idx = self.teacher_index.get(teacher_name)?;
+        let teacher_idx = self.teacher_index.get(&teacher_name)?;
         let counts = self.student_counts.get(student_name)?;
         counts.get(*teacher_idx).copied()
     }
