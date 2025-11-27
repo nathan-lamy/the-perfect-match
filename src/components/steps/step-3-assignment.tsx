@@ -206,7 +206,7 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
         physGroup,
         physCount: cleanNames(physicsColles),
         n: numAttempts,
-      });
+      }).catch((err) => console.log(err))
 
       console.log(result);
 
