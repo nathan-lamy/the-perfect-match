@@ -197,17 +197,23 @@ export function Step3Assignment({ onNext }: Step3AssignmentProps) {
 
       // Call Rust function via Tauri
       const startTime = Date.now();
-      const result = await invoke<RustComputeResult>("compute_assignment", {
-        students,
-        slots: futureSlotsTransformed,
-        restrictions: activeRestrictionObjects,
-        pastColles,
-        mathCount: cleanNames(mathsColles),
-        physGroup,
-        physCount: cleanNames(physicsColles),
-        n: numAttempts,
-      }).catch((err) => console.log(err))
-
+      // @ts-ignore – catch returns void but we force a RustComputeResult
+      const result: RustComputeResult = await invoke<RustComputeResult>(
+        "compute_assignment",
+        {
+          students,
+          slots: futureSlotsTransformed,
+          restrictions: activeRestrictionObjects,
+          pastColles,
+          mathCount: cleanNames(mathsColles),
+          physGroup,
+          physCount: cleanNames(physicsColles),
+          n: numAttempts,
+        }
+      ).catch((err) => {
+        console.error(err);
+        return {} as RustComputeResult; // force type
+      });
       console.log(result);
 
       const elapsedTime = (Date.now() - startTime) / 1000;
