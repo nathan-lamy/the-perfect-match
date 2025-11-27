@@ -46,7 +46,7 @@ export function Step1PastColles({ onNext, onSkip }: Step1PastCollesProps) {
       return [];
     });
 
-    const colles = mergePastColles(lastWeek, weekBefore);
+    const colles = cleanPastColles(mergePastColles(lastWeek, weekBefore));
     console.log("Merged past colles:", colles);
 
     setPastColles(colles);
@@ -133,4 +133,13 @@ function mergePastColles(
   }
 
   return merged;
+}
+
+function cleanPastColles(
+  colles: PastColle[]
+) {
+  return colles.map((c) => ({
+    ...c,
+    teachers: c.teachers.replace("précédents ?", ""),
+  }))
 }
