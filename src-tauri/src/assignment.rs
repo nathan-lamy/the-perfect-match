@@ -205,7 +205,7 @@ impl CollesCountCache {
 
     #[inline]
     fn get_count(&self, student_name: &str, teacher: &str) -> Option<i32> {
-        let teacher_idx = self.teacher_index.get(&teacher)?;
+        let teacher_idx = self.teacher_index.get(teacher)?;
         let counts = self.student_counts.get(student_name)?;
         counts.get(*teacher_idx).copied()
     }
