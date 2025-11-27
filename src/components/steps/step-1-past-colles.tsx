@@ -140,6 +140,6 @@ function cleanPastColles(
 ) {
   return colles.map((c) => ({
     ...c,
-    teachers: c.teachers.replace("précédents ?", ""),
+    teachers: c.teachers.map(t => t.replace("précédents ?", "")),
   }))
 }
