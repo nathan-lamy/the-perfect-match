@@ -59,7 +59,58 @@ fn load_data(app: AppHandle) -> Result<AppData, String> {
 
     let content = fs::read_to_string(&path).map_err(|e| format!("Error reading file: {}", e))?;
 
-    serde_json::from_str(&content).map_err(|e| format!("Error parsing JSON: {}", e))
+    // Try to parse as new format first
+    match serde_json::from_str::<AppData>(&content) {
+        Ok(data) => Ok(data),
+        Err(_) => {
+            // Try to parse as old format and migrate
+            #[derive(Deserialize)]
+            struct OldStudent {
+                id: String,
+                first_name: String,
+                last_name: String,
+            }
+
+            #[derive(Deserialize)]
+            struct OldAppData {
+                students: Vec<OldStudent>,
+                restrictions: Vec<crate::types::Restriction>,
+                groups: Vec<crate::types::Group>,
+            }
+
+            match serde_json::from_str::<OldAppData>(&content) {
+                Ok(old_data) => {
+                    // Migrate old students to new format
+                    let students: Vec<Student> = old_data
+                        .students
+                        .into_iter()
+                        .map(|s| Student {
+                            id: s.id,
+                            first_name: s.first_name.clone(),
+                            last_name: s.last_name.clone(),
+                            name: format!("{} {}", s.last_name, s.first_name),
+                        })
+                        .collect();
+
+                    let migrated_data = AppData {
+                        students,
+                        restrictions: old_data.restrictions,
+                        groups: old_data.groups,
+                        slot_rules: Vec::new(),
+                        assignment_passes: Vec::new(),
+                        subject_quotas: Vec::new(),
+                        global_weights: None,
+                    };
+
+                    // Save migrated data
+                    save_data(app, &migrated_data)?;
+
+                    Ok(migrated_data)
+                }
+                Err(e) => Err(format!("Error parsing JSON: {}", e)),
+            }
+        }
+    }
 }
 
 fn save_data(app: AppHandle, data: &AppData) -> Result<(), String> {

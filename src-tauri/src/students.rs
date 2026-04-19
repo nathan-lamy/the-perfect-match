@@ -99,8 +99,9 @@ pub async fn fetch_students_table(cookie: &str, disc: i32) -> Result<StudentsDat
 
                     let student = Student {
                         id: Student::generate_id(&firstname, &lastname),
-                        last_name: lastname,
-                        first_name: firstname,
+                        last_name: lastname.clone(),
+                        first_name: firstname.clone(),
+                        name: format!("{} {}", lastname, firstname),
                     };
 
                     // Get counts from <td> cells
