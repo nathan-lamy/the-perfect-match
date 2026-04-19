@@ -26,7 +26,10 @@ import type {
   Weights,
   ComputeResult,
   ColleToPublish,
+  AssignmentPass,
+  CollesCount,
 } from "@/types"
+import { DEFAULT_WEIGHTS } from "@/types"
 
 interface Step4ComputeProps {
   onNext: () => void
@@ -92,32 +95,26 @@ export function Step4Compute({ onNext }: Step4ComputeProps) {
     setError("")
 
     try {
-      // TODO: This is a placeholder - the actual compute_assignment command
-      // needs to be implemented in Rust with the new pipeline architecture
-      
-      // For now, show a message that this is not yet implemented
-      setError(
-        "⚠️ Le nouveau système de pipeline n'est pas encore implémenté dans le backend Rust. " +
-        "Vous devez implémenter la fonction compute_assignment avec la nouvelle signature " +
-        "qui accepte passes, global_rules, global_weights, et quotas."
-      )
-      
-      setComputing(false)
-      return
-
-      // This is what the call should look like once implemented:
-      /*
       const startTime = Date.now()
+
+      // Load passes from cache
+      const cachedPasses = loadCache<AssignmentPass[]>("assignment_passes") || []
       
+      // Build colles count from past colles
+      const collesCount: CollesCount = {
+        header: [],
+        data: [],
+      }
+
       const computeResult = await invoke<ComputeResult>("compute_assignment", {
         students,
         slots,
         restrictions,
         pastColles,
-        collesCount: {}, // TODO: Load from backend
+        collesCount,
         globalRules,
-        globalWeights,
-        passes: [], // TODO: Load from cache
+        globalWeights: globalWeights || DEFAULT_WEIGHTS,
+        passes: cachedPasses,
         groups,
         quotas,
         n: 10, // Number of parallel attempts
@@ -134,12 +131,11 @@ export function Step4Compute({ onNext }: Step4ComputeProps) {
           .filter((a) => a.slot_id !== null)
           .map((a) => ({
             student_id: `E${students.findIndex((s) => s.id === a.student_id) + 1}`,
-            colle_id: a.slot_id,
+            colle_id: a.slot_id!,
           }))
       )
 
       saveCache("colles_to_publish", collesToPublish)
-      */
     } catch (err) {
       console.error("Computation failed:", err)
       setError(
