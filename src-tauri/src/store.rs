@@ -4,12 +4,10 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Student {
-    pub id: String,
-    pub first_name: String,
-    pub last_name: String,
-}
+// Re-export types from crate::types to avoid duplication
+pub use crate::types::{Student, Restriction, Group};
+
+// Helper for Student ID generation
 impl Student {
     pub fn generate_id(first_name: &str, last_name: &str) -> String {
         format!("{}@{}", first_name, last_name)
@@ -17,27 +15,18 @@ impl Student {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Restriction {
-    pub id: String,
-    pub activity_name: String,
-    pub start_time: String,
-    pub end_time: String,
-    pub day: String,
-    pub student_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Group {
-    pub id: String,
-    pub name: String,
-    pub student_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppData {
     pub students: Vec<Student>,
     pub restrictions: Vec<Restriction>,
     pub groups: Vec<Group>,
+    #[serde(default)]
+    pub slot_rules: Vec<crate::types::SlotRule>,
+    #[serde(default)]
+    pub assignment_passes: Vec<crate::types::AssignmentPass>,
+    #[serde(default)]
+    pub subject_quotas: Vec<crate::types::SubjectQuota>,
+    #[serde(default)]
+    pub global_weights: Option<crate::types::Weights>,
 }
 
 impl Default for AppData {
@@ -46,6 +35,10 @@ impl Default for AppData {
             students: Vec::new(),
             restrictions: Vec::new(),
             groups: Vec::new(),
+            slot_rules: Vec::new(),
+            assignment_passes: Vec::new(),
+            subject_quotas: Vec::new(),
+            global_weights: None,
         }
     }
 }
@@ -220,4 +213,171 @@ pub fn delete_group(app: AppHandle, id: String) -> Result<(), String> {
 pub fn load_groups(app: AppHandle) -> Result<Vec<Group>, String> {
     let data = load_data(app)?;
     Ok(data.groups)
+}
+
+// ============= Tauri Commands - Slot Rules =============
+
+#[tauri::command]
+pub fn add_slot_rule(
+    app: AppHandle,
+    rule: crate::types::SlotRule,
+) -> Result<crate::types::SlotRule, String> {
+    let mut data = load_data(app.clone())?;
+    data.slot_rules.push(rule.clone());
+    save_data(app, &data)?;
+    Ok(rule)
+}
+
+#[tauri::command]
+pub fn update_slot_rule(
+    app: AppHandle,
+    rule: crate::types::SlotRule,
+) -> Result<crate::types::SlotRule, String> {
+    let mut data = load_data(app.clone())?;
+    let existing = data
+        .slot_rules
+        .iter_mut()
+        .find(|r| r.id == rule.id)
+        .ok_or("Slot rule not found")?;
+    *existing = rule.clone();
+    save_data(app, &data)?;
+    Ok(rule)
+}
+
+#[tauri::command]
+pub fn delete_slot_rule(app: AppHandle, id: String) -> Result<(), String> {
+    let mut data = load_data(app.clone())?;
+    data.slot_rules.retain(|r| r.id != id);
+    save_data(app, &data)
+}
+
+#[tauri::command]
+pub fn load_slot_rules(app: AppHandle) -> Result<Vec<crate::types::SlotRule>, String> {
+    let data = load_data(app)?;
+    Ok(data.slot_rules)
+}
+
+// ============= Tauri Commands - Assignment Passes =============
+
+#[tauri::command]
+pub fn add_assignment_pass(
+    app: AppHandle,
+    pass: crate::types::AssignmentPass,
+) -> Result<crate::types::AssignmentPass, String> {
+    let mut data = load_data(app.clone())?;
+    data.assignment_passes.push(pass.clone());
+    save_data(app, &data)?;
+    Ok(pass)
+}
+
+#[tauri::command]
+pub fn update_assignment_pass(
+    app: AppHandle,
+    pass: crate::types::AssignmentPass,
+) -> Result<crate::types::AssignmentPass, String> {
+    let mut data = load_data(app.clone())?;
+    let existing = data
+        .assignment_passes
+        .iter_mut()
+        .find(|p| p.id == pass.id)
+        .ok_or("Assignment pass not found")?;
+    *existing = pass.clone();
+    save_data(app, &data)?;
+    Ok(pass)
+}
+
+#[tauri::command]
+pub fn delete_assignment_pass(app: AppHandle, id: String) -> Result<(), String> {
+    let mut data = load_data(app.clone())?;
+    data.assignment_passes.retain(|p| p.id != id);
+    save_data(app, &data)
+}
+
+#[tauri::command]
+pub fn load_assignment_passes(
+    app: AppHandle,
+) -> Result<Vec<crate::types::AssignmentPass>, String> {
+    let data = load_data(app)?;
+    Ok(data.assignment_passes)
+}
+
+#[tauri::command]
+pub fn reorder_assignment_passes(
+    app: AppHandle,
+    ordered_ids: Vec<String>,
+) -> Result<(), String> {
+    let mut data = load_data(app.clone())?;
+    
+    // Create a new ordered vector
+    let mut reordered = Vec::new();
+    for id in ordered_ids {
+        if let Some(pass) = data.assignment_passes.iter().find(|p| p.id == id) {
+            reordered.push(pass.clone());
+        }
+    }
+    
+    data.assignment_passes = reordered;
+    save_data(app, &data)
+}
+
+// ============= Tauri Commands - Subject Quotas =============
+
+#[tauri::command]
+pub fn add_subject_quota(
+    app: AppHandle,
+    quota: crate::types::SubjectQuota,
+) -> Result<crate::types::SubjectQuota, String> {
+    let mut data = load_data(app.clone())?;
+    data.subject_quotas.push(quota.clone());
+    save_data(app, &data)?;
+    Ok(quota)
+}
+
+#[tauri::command]
+pub fn update_subject_quota(
+    app: AppHandle,
+    quota: crate::types::SubjectQuota,
+) -> Result<crate::types::SubjectQuota, String> {
+    let mut data = load_data(app.clone())?;
+    let existing = data
+        .subject_quotas
+        .iter_mut()
+        .find(|q| q.id == quota.id)
+        .ok_or("Subject quota not found")?;
+    *existing = quota.clone();
+    save_data(app, &data)?;
+    Ok(quota)
+}
+
+#[tauri::command]
+pub fn delete_subject_quota(app: AppHandle, id: String) -> Result<(), String> {
+    let mut data = load_data(app.clone())?;
+    data.subject_quotas.retain(|q| q.id != id);
+    save_data(app, &data)
+}
+
+#[tauri::command]
+pub fn load_subject_quotas(
+    app: AppHandle,
+) -> Result<Vec<crate::types::SubjectQuota>, String> {
+    let data = load_data(app)?;
+    Ok(data.subject_quotas)
+}
+
+// ============= Tauri Commands - Global Weights =============
+
+#[tauri::command]
+pub fn save_global_weights(
+    app: AppHandle,
+    weights: crate::types::Weights,
+) -> Result<(), String> {
+    let mut data = load_data(app.clone())?;
+    data.global_weights = Some(weights);
+    save_data(app, &data)
+}
+
+#[tauri::command]
+pub fn load_global_weights(app: AppHandle) -> Result<crate::types::Weights, String> {
+    let data = load_data(app)?;
+    Ok(data.global_weights.unwrap_or(crate::types::DEFAULT_WEIGHTS))
 }

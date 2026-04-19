@@ -4,9 +4,10 @@ import { useState } from "react";
 import { StepProgress } from "@/components/step-progress";
 import { Step0Students } from "@/components/steps/step-0-students";
 import { Step1PastColles } from "@/components/steps/step-1-past-colles";
-import { Step2FutureColles } from "@/components/steps/step-2-future-colles";
-import { Step3Assignment } from "@/components/steps/step-3-assignment";
-import { Step4Publish } from "@/components/steps/step-4-publish";
+import { Step2FetchSlots } from "@/components/steps/step-2-fetch-slots";
+import { Step3Pipeline } from "@/components/steps/step-3-pipeline";
+import { Step4Compute } from "@/components/steps/step-4-compute";
+import { Step5Publish } from "@/components/steps/step-5-publish";
 import { Button } from "@/components/ui/button";
 
 export function StepManager() {
@@ -15,8 +16,9 @@ export function StepManager() {
   const steps = [
     "Élèves",
     "Colles passées",
-    "Créneaux à venir",
-    "Attribution",
+    "Créneaux",
+    "Pipeline",
+    "Calcul",
     "Publication",
   ];
 
@@ -37,19 +39,25 @@ export function StepManager() {
         );
       case 2:
         return (
-          <Step2FutureColles
+          <Step2FetchSlots
             onNext={() => setCurrentStep(3)}
             onSkip={() => setCurrentStep(3)}
           />
         );
       case 3:
         return (
-          <Step3Assignment
+          <Step3Pipeline
             onNext={() => setCurrentStep(4)}
           />
         );
       case 4:
-        return <Step4Publish onComplete={() => setCurrentStep(0)} />;
+        return (
+          <Step4Compute
+            onNext={() => setCurrentStep(5)}
+          />
+        );
+      case 5:
+        return <Step5Publish onComplete={() => setCurrentStep(0)} />;
       default:
         return null;
     }

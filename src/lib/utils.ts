@@ -8,11 +8,12 @@ export function cn(...inputs: ClassValue[]) {
 // Session storage utilities
 const SESSION_KEY = "bjcolle_session";
 
-export function saveSession(session: string) {
+export function saveSession(session: string): void {
   localStorage.setItem(SESSION_KEY, session);
 }
-export function loadSession(): string | null {
-  return localStorage.getItem(SESSION_KEY);
+
+export function loadSession(): string {
+  return localStorage.getItem(SESSION_KEY) || '';
 }
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
@@ -41,7 +42,18 @@ export function compareTimes(t1: string, t2: string) {
   return minutes1 - minutes2;
 }
 
+// Timezone-safe: parse as local midnight, NOT UTC
 export function getDayOfWeek(dateStr: string): string {
+  // Parse YYYY-MM-DD or YYYY/MM/DD as local date
+  const parts = dateStr.split(/[-/]/);
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    return date.toLocaleDateString("en-US", { weekday: "long" });
+  }
+  // Fallback
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", { weekday: "long" });
 }
@@ -49,8 +61,21 @@ export function getDayOfWeek(dateStr: string): string {
 export const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-// Take a date string (YYYY/MM/DD) and return the date string one week before (YYYY/MM/DD)
+// Returns YYYY/MM/DD one week before input (handles both YYYY-MM-DD and YYYY/MM/DD)
 export function getWeekBefore(dateStr: string): string {
+  const parts = dateStr.split(/[-/]/);
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    date.setDate(date.getDate() - 7);
+    const newYear = date.getFullYear();
+    const newMonth = String(date.getMonth() + 1).padStart(2, "0");
+    const newDay = String(date.getDate()).padStart(2, "0");
+    return `${newYear}/${newMonth}/${newDay}`;
+  }
+  // Fallback
   const date = new Date(dateStr);
   date.setDate(date.getDate() - 7);
   const year = date.getFullYear();

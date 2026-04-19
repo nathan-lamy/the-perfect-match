@@ -6,6 +6,7 @@ mod past_colles;
 mod session;
 mod store;
 mod students;
+mod types;
 
 use std::vec;
 
@@ -14,14 +15,22 @@ use create_colle::{post_timetable_choice_students, post_timetable_dashboard};
 use future_colles::fetch_future_colles;
 use past_colles::fetch_last_week_colles;
 use session::authenticate;
-use store::*;
 use students::fetch_students_table;
 
 use crate::students::StudentsData;
+use assignment::compute_best_pipeline;
+use crate::types::*;
 
-use assignment::{
-    compute_best_assignment, CollesCount, ComputeResult, FutureSlot, PastColle, Restriction,
-    Student,
+// Import store functions but not types (to avoid conflicts with crate::types)
+use store::{
+    add_restriction, update_restriction, delete_restriction, load_restrictions,
+    add_group, update_group, delete_group, load_groups,
+    add_slot_rule, update_slot_rule, delete_slot_rule, load_slot_rules,
+    add_assignment_pass, update_assignment_pass, delete_assignment_pass,
+    load_assignment_passes, reorder_assignment_passes,
+    add_subject_quota, update_subject_quota, delete_subject_quota, load_subject_quotas,
+    save_global_weights, load_global_weights,
+    save_students, load_students,
 };
 
 /* === AUTH === */
@@ -76,41 +85,50 @@ async fn get_students(
     Ok(data)
 }
 
-/// Tauri command wrapper for compute_best_assignment
+/// Tauri command wrapper for compute_best_pipeline
 ///
-/// This function is called from the frontend via invoke("compute_best_assignment", {...})
-/// It takes ownership of the data (Vec instead of &[]) because Tauri passes owned data
+/// This function is called from the frontend via invoke("compute_assignment", {...})
+/// It implements the new N-pass pipeline architecture with configurable rules,
+/// weights, and quotas.
 ///
 /// # Arguments
 /// * `students` - List of students
 /// * `slots` - List of available time slots
 /// * `restrictions` - List of restrictions (unavailabilities)
 /// * `past_colles` - History of previous colles
-/// * `math_count` - Count of math colles per teacher
-/// * `phys_group` - IDs of students in physics group
-/// * `phys_count` - Count of physics colles per teacher
+/// * `colles_count` - Count of colles per teacher
+/// * `global_rules` - Global slot rules (capacity/ignore)
+/// * `global_weights` - Global scoring weights
+/// * `passes` - Assignment passes to execute
+/// * `groups` - Student groups
+/// * `quotas` - Subject quotas
 /// * `n` - Number of parallel attempts to make
 ///
 /// # Returns
-/// Result containing the best assignment or an error message
+/// Result containing the best assignment with quota tracking or an error message
 #[tauri::command]
 async fn compute_assignment(
     students: Vec<Student>,
-    slots: Vec<FutureSlot>,
+    slots: Vec<Slot>,
     restrictions: Vec<Restriction>,
     past_colles: Vec<PastColle>,
-    math_count: CollesCount,
-    phys_group: Vec<String>,
-    phys_count: CollesCount,
+    colles_count: CollesCount,
+    global_rules: Vec<SlotRule>,
+    global_weights: Weights,
+    passes: Vec<AssignmentPass>,
+    groups: Vec<Group>,
+    quotas: Vec<SubjectQuota>,
     n: usize,
 ) -> Result<ComputeResult, String> {
     // Log for debugging
-    println!("Starting assignment computation with {} attempts", n);
+    println!("Starting N-pass pipeline computation with {} attempts", n);
     println!(
-        "Students: {}, Slots: {}, Restrictions: {}",
+        "Students: {}, Slots: {}, Restrictions: {}, Passes: {}, Quotas: {}",
         students.len(),
         slots.len(),
-        restrictions.len()
+        restrictions.len(),
+        passes.len(),
+        quotas.len()
     );
 
     // Validate inputs
@@ -123,29 +141,45 @@ async fn compute_assignment(
 
     // Run the computation in a blocking task to avoid blocking the async runtime
     // This is important because the computation is CPU-intensive
-    let result = compute_best_assignment(
-        students,
-        slots,
-        restrictions,
-        past_colles,
-        math_count,
-        phys_group,
-        phys_count,
-        n,
-    );
+    let result = tokio::task::spawn_blocking(move || {
+        compute_best_pipeline(
+            students,
+            slots,
+            restrictions,
+            past_colles,
+            colles_count,
+            global_rules,
+            global_weights,
+            passes,
+            groups,
+            quotas,
+            n,
+        )
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?;
 
     // Return the result or an error
     match result {
         Some(compute_result) => {
-            println!("Assignment computation successful!");
-            println!("Math assignments: {}, Physics assignments: {}", 
-                     compute_result.math.assignments.len(),
-                     compute_result.physics.assignments.len());
+            println!("Pipeline computation successful!");
+            println!(
+                "Passes completed: {}, Total assignments: {}, Quota violations: {}",
+                compute_result.passes.len(),
+                compute_result
+                    .passes
+                    .iter()
+                    .map(|p| p.assignments.len())
+                    .sum::<usize>(),
+                compute_result.quota_violations.len()
+            );
             Ok(compute_result)
         }
-        None => {
-            Err("Impossible de trouver une attribution valide après tous les essais. Vérifiez les contraintes (restrictions, créneaux disponibles).".to_string())
-        }
+        None => Err(
+            "Impossible de trouver une attribution valide après tous les essais. \
+             Vérifiez les contraintes (restrictions, créneaux disponibles)."
+                .to_string(),
+        ),
     }
 }
 
@@ -169,6 +203,21 @@ pub fn run() {
             update_group,
             delete_group,
             load_groups,
+            add_slot_rule,
+            update_slot_rule,
+            delete_slot_rule,
+            load_slot_rules,
+            add_assignment_pass,
+            update_assignment_pass,
+            delete_assignment_pass,
+            load_assignment_passes,
+            reorder_assignment_passes,
+            add_subject_quota,
+            update_subject_quota,
+            delete_subject_quota,
+            load_subject_quotas,
+            save_global_weights,
+            load_global_weights,
             fetch_last_week_colles,
             fetch_future_colles,
             post_timetable_dashboard,

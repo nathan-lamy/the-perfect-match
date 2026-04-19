@@ -1,23 +1,46 @@
+use chrono::{Datelike, NaiveDate};
 use regex::Regex;
 use reqwest;
 use scraper::{Html, Selector};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::error::Error;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Colle {
     pub id: String,
     pub teacher: String,
-    pub date: String,       // Format: YYYY/MM/DD
-    pub start_hour: String, // Format: hh:mm
-    pub end_hour: String,   // Format: hh:mm
+    pub date: String,       // Format: YYYY-MM-DD
+    pub start_hour: String, // Format: HH:MM
+    pub end_hour: String,   // Format: HH:MM
     pub subject: String,
+    pub is_assigned: bool,  // TODO: Parse from HTML
 }
 
 #[derive(Debug, Serialize)]
 pub struct FutureCollesResponse {
     pub colles: Vec<Colle>,
     pub url: String,
+}
+
+/// Generate all Monday dates between start_date and end_date (inclusive)
+fn mondays_in_range(start_date: &str, end_date: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    let start = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid start_date format: {}", e))?;
+    let end = NaiveDate::parse_from_str(end_date, "%Y-%m-%d")
+        .map_err(|e| format!("Invalid end_date format: {}", e))?;
+    
+    let mut mondays = Vec::new();
+    let mut current = start;
+    
+    while current <= end {
+        if current.weekday() == chrono::Weekday::Mon {
+            mondays.push(current.format("%d/%m").to_string());
+        }
+        current = current.succ_opt().ok_or("Date overflow")?;
+    }
+    
+    Ok(mondays)
 }
 
 /// Finds the page URL for a given date
@@ -105,7 +128,7 @@ pub async fn fetch_colles(
                     let day = day_str.parse::<u32>().unwrap_or(1);
                     let month = parse_french_month(parts[2]);
                     let year = parts[3];
-                    current_date = format!("{}/{:02}/{}", year, month, day);
+                    current_date = format!("{}-{:02}-{:02}", year, month, day);
                 }
             }
             if current_date.is_empty() {
@@ -202,6 +225,7 @@ pub async fn fetch_colles(
                 start_hour,
                 end_hour,
                 subject,
+                is_assigned: false, // TODO: Parse from HTML
             });
         }
     }
@@ -233,9 +257,52 @@ fn parse_french_month(month: &str) -> u32 {
 }
 
 #[tauri::command(async)]
-pub async fn fetch_future_colles(date: &str, cookie: &str) -> Result<FutureCollesResponse, String> {
-    let colles = fetch_colles(date, cookie)
-        .await
-        .map_err(|e| format!("Failed to fetch future colles: {}", e))?;
-    Ok(colles)
+pub async fn fetch_future_colles(
+    start_date: &str,
+    end_date: &str,
+    cookie: &str,
+) -> Result<FutureCollesResponse, String> {
+    // Generate all Mondays in the date range
+    let mondays = mondays_in_range(start_date, end_date)
+        .map_err(|e| format!("Failed to generate date range: {}", e))?;
+    
+    if mondays.is_empty() {
+        return Err("No Mondays found in the specified date range".to_string());
+    }
+    
+    let monday_count = mondays.len();
+    println!("Fetching colles for {} weeks: {:?}", monday_count, mondays);
+    
+    // Fetch colles for each Monday
+    let mut all_colles = Vec::new();
+    let mut last_url = String::new();
+    let mut seen_ids = HashSet::new();
+    
+    for monday in mondays {
+        match fetch_colles(&monday, cookie).await {
+            Ok(response) => {
+                last_url = response.url;
+                for colle in response.colles {
+                    // Deduplicate by ID
+                    if !colle.id.is_empty() && seen_ids.insert(colle.id.clone()) {
+                        all_colles.push(colle);
+                    } else if colle.id.is_empty() {
+                        // If no ID, add anyway (shouldn't happen but be safe)
+                        all_colles.push(colle);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to fetch colles for {}: {}", monday, e);
+                // Continue with other weeks
+            }
+        }
+    }
+    
+    println!("Fetched {} unique colles across {} weeks", all_colles.len(), monday_count);
+    
+    Ok(FutureCollesResponse {
+        colles: all_colles,
+        url: last_url,
+    })
 }
