@@ -234,16 +234,16 @@ export function QuotaManager({
             <div className="space-y-2">
               <Label htmlFor="group-id">Groupe d'élèves</Label>
               <Select
-                value={formData.group_id}
+                value={formData.group_id || "__all__"}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, group_id: value })
+                  setFormData({ ...formData, group_id: value === "__all__" ? "" : value })
                 }
               >
                 <SelectTrigger id="group-id">
                   <SelectValue placeholder="Tous les élèves" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tous les élèves</SelectItem>
+                  <SelectItem value="__all__">Tous les élèves</SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name} ({group.student_ids.length} élèves)

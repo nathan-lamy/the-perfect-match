@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Calendar } from "lucide-react"
 import type { Slot } from "@/types"
 import { loadSession, saveCache } from "@/lib/utils"
 
@@ -122,34 +121,30 @@ export function Step2FetchSlots({ onNext, onSkip }: Step2FetchSlotsProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start-date" className="text-sm font-medium">
-                  Date de début
+                  Date de début (YYYY-MM-DD)
                 </Label>
-                <div className="relative">
-                  <Input
-                    id="start-date"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    disabled={loading}
-                  />
-                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
+                <Input
+                  id="start-date"
+                  type="text"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  disabled={loading}
+                  placeholder="2024-01-15"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="end-date" className="text-sm font-medium">
-                  Date de fin
+                  Date de fin (YYYY-MM-DD)
                 </Label>
-                <div className="relative">
-                  <Input
-                    id="end-date"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    disabled={loading}
-                  />
-                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
+                <Input
+                  id="end-date"
+                  type="text"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  disabled={loading}
+                  placeholder="2024-01-31"
+                />
               </div>
             </div>
 

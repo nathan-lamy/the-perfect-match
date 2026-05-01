@@ -278,11 +278,11 @@ export function PassManager({
                           <div className="space-y-2">
                             <Label htmlFor={`group-${pass.id}`}>Groupe d'élèves</Label>
                             <Select
-                              value={pass.student_group_id || ""}
+                              value={pass.student_group_id || "__all__"}
                               onValueChange={(value) =>
                                 handleUpdatePass({
                                   ...pass,
-                                  student_group_id: value || null,
+                                  student_group_id: value === "__all__" ? null : value,
                                 })
                               }
                             >
@@ -290,7 +290,7 @@ export function PassManager({
                                 <SelectValue placeholder="Tous les élèves" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Tous les élèves</SelectItem>
+                                <SelectItem value="__all__">Tous les élèves</SelectItem>
                                 {groups.map((group) => (
                                   <SelectItem key={group.id} value={group.id}>
                                     {group.name} ({group.student_ids.length} élèves)
