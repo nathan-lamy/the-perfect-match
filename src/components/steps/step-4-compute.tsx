@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { QuotaTracker } from "@/components/quota-tracker"
-import { loadCache, loadSession, saveCache } from "@/lib/utils"
+import { loadCache, saveCache } from "@/lib/utils"
 import type {
   Student,
   Slot,

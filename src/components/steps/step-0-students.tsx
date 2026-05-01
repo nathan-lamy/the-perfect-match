@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { LoadingButton } from "@/components/loading-button";
 import { Button } from "@/components/ui/button";
-import type { Student, Restriction, StudentGroup, StudentsData } from "@/types";
+import type { Student, Restriction, Group, StudentsData } from "@/types";
 import { StudentList } from "@/components/student-list";
 import { RestrictionManager } from "@/components/restriction-manager";
 import { GroupManager } from "@/components/group-manager";
@@ -27,7 +27,7 @@ export function Step0Students({ onNext }: Step0StudentsProps) {
   const [studentsLoaded, setStudentsLoaded] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [restrictions, setRestrictions] = useState<Restriction[]>([]);
-  const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
+  const [studentGroups, setStudentGroups] = useState<Group[]>([]);
 
   const handleLoadStudents = async () => {
     setLoading(true);
@@ -37,7 +37,7 @@ export function Step0Students({ onNext }: Step0StudentsProps) {
       disc: 1,  // Discipline 1 is for Maths
     });
     const restrictions = await invoke<Restriction[]>("load_restrictions");
-    const groups = await invoke<StudentGroup[]>("load_groups");
+    const groups = await invoke<Group[]>("load_groups");
 
     setRestrictions(restrictions);
     setStudentGroups(groups);

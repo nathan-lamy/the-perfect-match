@@ -36,10 +36,10 @@ export function QuotaTracker({
     return student ? student.name : studentId
   }
 
-  const getQuotaName = (quotaId: string) => {
-    const quota = quotas.find((q) => q.id === quotaId)
-    return quota ? quota.name : quotaId
-  }
+  // const getQuotaName = (quotaId: string) => {
+  //   const quota = quotas.find((q) => q.id === quotaId)
+  //   return quota ? quota.name : quotaId
+  // }
 
   const getGroupName = (groupId: string | null) => {
     if (!groupId) return null

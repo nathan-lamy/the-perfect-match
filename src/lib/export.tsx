@@ -31,8 +31,8 @@ export const DownloadTimetableButton = ({
 
       // Build timetable data
       const data = assignments.map((a) => {
-        const student = students.find((s) => s.id === a.studentId);
-        const slot = slots.find((s) => s.id === a.slotId);
+        const student = students.find((s) => s.id === a.student_id);
+        const slot = slots.find((s) => s.id === a.slot_id);
         return {
           "Prénom": student?.first_name || "",
           "Nom": student?.last_name || "",

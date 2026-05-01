@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { StudentGroup, Student } from "@/types";
+import type { Group, Student } from "@/types";
 import { Plus, Trash2, Edit2, X, Check, Users } from "lucide-react";
 import { StudentCombobox } from "@/components/student-combobox";
 import { invoke } from "@tauri-apps/api/core";
 
 interface GroupManagerProps {
-  groups: StudentGroup[];
-  setGroups: (groups: StudentGroup[]) => void;
+  groups: Group[];
+  setGroups: (groups: Group[]) => void;
   students: Student[];
 }
 
@@ -46,7 +46,7 @@ export function GroupManager({
       );
       setEditingId(null);
     } else {
-      const newGroup: StudentGroup = await invoke("add_group", {
+      const newGroup: Group = await invoke("add_group", {
         name: formData.name,
         studentIds: formData.student_ids,
       });
@@ -57,7 +57,7 @@ export function GroupManager({
     setIsAdding(false);
   };
 
-  const handleEdit = (group: StudentGroup) => {
+  const handleEdit = (group: Group) => {
     setFormData(group);
     setEditingId(group.id);
     setIsAdding(true);
