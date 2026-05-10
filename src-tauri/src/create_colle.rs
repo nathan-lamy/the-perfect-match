@@ -1,110 +1,172 @@
 use regex::Regex;
 use reqwest::Client;
 use std::collections::HashMap;
+use tauri::Emitter;
 
-/// Posts to the timetable dashboard and returns the Location header from the redirect
-///
-/// # Arguments
-/// * `checkbox_id` - The checkbox ID to include in parameter
-/// * `cookie` - The cookie string for authentication
-///
-/// # Returns
-/// * `Ok(String)` - The Location header value if present
-/// * `Err` - If the request fails or Location header is missing
-#[tauri::command(async)]
-pub async fn post_timetable_dashboard(
+#[derive(Debug, serde::Deserialize)]
+pub struct AssignmentToPublish {
+    pub student: String,
+    pub slot_id: String, // e.g. "COCHER_XXX"
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ColleProgressEvent {
+    pub slot_id: String,
+    pub done: usize,
+    pub total: usize,
+    pub error: Option<String>,
+}
+
+/// Groups assignments by slot, then publishes each slot's students.
+#[tauri::command]
+pub async fn publish_colles(
+    app: tauri::AppHandle,
+    assignments: Vec<AssignmentToPublish>,
+    cookie: String,
+    origin: String,
+) -> Result<(), String> {
+    let client = Client::new();
+
+    let mut by_slot: HashMap<String, Vec<String>> = HashMap::new();
+    for a in assignments {
+        by_slot.entry(a.slot_id).or_default().push(a.student);
+    }
+
+    let total = by_slot.len();
+    for (done, (slot_id, students)) in by_slot.iter().enumerate() {
+        let result = async {
+            let choice_path = post_timetable_dashboard(&client, &slot_id, &cookie, &origin).await?;
+            let choice_url = format!("https://bjcolle.fr/{}", choice_path);
+            post_timetable_choice_students(&client, &choice_url, &students, &cookie).await
+        }
+        .await;
+
+        app.emit(
+            "colle-progress",
+            ColleProgressEvent {
+                slot_id: slot_id.clone(),
+                done: done + 1,
+                total,
+                error: result.err(),
+            },
+        )
+        .ok();
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    Ok(())
+}
+
+/// Clears all students from the given slots.
+#[tauri::command]
+pub async fn clear_colles(
+    slot_ids: Vec<String>,
+    cookie: String,
+    origin: String,
+) -> Result<(), String> {
+    // Empty student list for each slot = nuke
+    let by_slot: HashMap<String, Vec<String>> =
+        slot_ids.into_iter().map(|id| (id, vec![])).collect();
+
+    publish_slots(&by_slot, &cookie, &origin).await
+}
+
+/// Shared logic: for each slot, POST to dashboard then POST to choice students.
+async fn publish_slots(
+    by_slot: &HashMap<String, Vec<String>>,
+    cookie: &str,
+    origin: &str,
+) -> Result<(), String> {
+    let client = Client::new();
+
+    for (slot_id, students) in by_slot {
+        // Step 1: POST to dashboard to get the choice URL
+        let choice_path = post_timetable_dashboard(&client, slot_id, cookie, origin).await?;
+        let choice_url = format!("https://bjcolle.fr/{}", choice_path);
+
+        // Step 2: POST students to the choice endpoint
+        post_timetable_choice_students(&client, &choice_url, students, cookie).await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
+    }
+
+    Ok(())
+}
+
+async fn post_timetable_dashboard(
+    client: &Client,
     checkbox_id: &str,
     cookie: &str,
-    from: &str,
+    origin: &str,
 ) -> Result<String, String> {
-    // Build request client, request from URL then POST to URL; keep session cookies
-    let client = Client::builder()
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
-
-    let _ = client
-        .get(from) // "https://bjcolle.fr/"
+    // Warm up the session
+    client
+        .get(origin)
         .header("Cookie", cookie)
         .send()
         .await
-        .map_err(|e| format!("Initial GET request failed: {}", e))?;
+        .map_err(|e| format!("Initial GET failed: {}", e))?;
 
     let url = "https://bjcolle.fr/timetable_dashboard_period.php";
 
-    // Build form data
     let mut form_data = HashMap::new();
-    form_data.insert("Liste2", "timetable_dashboard_period.php%3Fdisc%3D0");
-    form_data.insert("NOM_COLLEUR_SEARCH", "");
-    form_data.insert(checkbox_id, "Choisir+les+%C3%A9l%C3%A8ves");
+    form_data.insert(
+        "Liste2",
+        "timetable_dashboard_period.php%3Fdisc%3D0".to_string(),
+    );
+    form_data.insert("NOM_COLLEUR_SEARCH", "".to_string());
+    form_data.insert(checkbox_id, "Choisir+les+%C3%A9l%C3%A8ves".to_string());
 
-    // Make POST request
-    let response = client
+    let text = client
         .post(url)
         .header("Cookie", cookie)
-        .header("Referer", from)
+        .header("Referer", origin)
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&form_data)
         .send()
         .await
-        .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-    // Find target URL
-    let text = response
+        .map_err(|e| format!("Dashboard POST failed: {}", e))?
         .text()
         .await
-        .map_err(|e| format!("Failed to read response text: {}", e))?;
-    // Regex pattern to match the target URL
+        .map_err(|e| format!("Failed to read dashboard response: {}", e))?;
+
     let re = Regex::new(r"timetable_choice_students_period\.php\?creneau=\d+&hzgedytr23treyu=\d+")
-        .map_err(|e| format!("Failed to compile regex: {}", e))?;
+        .map_err(|e| format!("Regex error: {}", e))?;
 
-    // Find the first match or return an empty string
-    let result = re
-        .find(&text)
+    re.find(&text)
         .map(|m| m.as_str().to_string())
-        .unwrap_or_else(|| "".to_string());
-
-    Ok(result)
+        .ok_or_else(|| {
+            format!(
+                "Choice URL not found in dashboard response for slot {}",
+                checkbox_id
+            )
+        })
 }
 
-/// Posts to the timetable choice students endpoint with dynamic form data
-///
-/// # Arguments
-/// * `url` - The full URL to POST to (e.g., "https://bjcolle.fr/timetable_choice_students_period.php?creneau=282983&hzgedytr23treyu=568742")
-/// * `student_id` - The student ID for the checkbox (e.g., "E30")
-/// * `date` - The date in format DD/MM/YYYY (e.g., "25/08/2025")
-/// * `cookie` - The cookie string for authentication
-///
-/// # Returns
-/// * `Ok(())` - If the request succeeds
-/// * `Err` - If the request fails
-#[tauri::command(async)]
-pub async fn post_timetable_choice_students(
+async fn post_timetable_choice_students(
+    client: &Client,
     url: &str,
-    students_id: Vec<&str>,
+    students: &[String],
     cookie: &str,
 ) -> Result<(), String> {
-    let client = Client::new();
-
-    // Build form data dynamically
     let mut form_data = HashMap::new();
-
-    form_data.insert("Liste_tribu", format!("{}%26tribe%3D0", url));
-    form_data.insert("Liste_groupe", format!("{}%26group%3D0", url));
+    form_data.insert("Liste_tribu".to_string(), format!("{}%26tribe%3D0", url));
+    form_data.insert("Liste_groupe".to_string(), format!("{}%26group%3D0", url));
     form_data.insert(
-        "Liste_colles_matiere",
+        "Liste_colles_matiere".to_string(),
         format!("{}%26c%3D282983%26d%3D1%26e%3D%26cm%3D-1", url),
     );
     form_data.insert(
-        "Liste_colles_colleur",
+        "Liste_colles_colleur".to_string(),
         format!("{}%26c%3D282983%26d%3D1%26e%3D%26cc%3D-1", url),
     );
-    form_data.insert("datepicker_go", "25%2F08%2F2025".to_string());
-    for student_id in students_id {
-        form_data.insert(student_id, "on".to_string());
+    form_data.insert("datepicker_go".to_string(), "25%2F08%2F2025".to_string());
+    for student in students {
+        form_data.insert(student.clone(), "on".to_string());
     }
-    form_data.insert("VALIDER_STUDENTS", "Enregistrer".to_string());
+    form_data.insert("VALIDER_STUDENTS".to_string(), "Enregistrer".to_string());
 
-    // Make POST request
     let response = client
         .post(url)
         .header("Cookie", cookie)
@@ -113,12 +175,14 @@ pub async fn post_timetable_choice_students(
         .form(&form_data)
         .send()
         .await
-        .map_err(|e| format!("HTTP request failed: {}", e))?;
+        .map_err(|e| format!("Choice POST failed: {}", e))?;
 
-    // Check if request was successful
     if response.status().is_success() || response.status().is_redirection() {
         Ok(())
     } else {
-        Err(format!("Request failed with status: {}", response.status()).into())
+        Err(format!(
+            "Choice POST returned status: {}",
+            response.status()
+        ))
     }
 }

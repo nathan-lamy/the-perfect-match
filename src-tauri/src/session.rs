@@ -44,12 +44,3 @@ pub async fn login(
 
     Ok(())
 }
-
-pub async fn authenticate(
-    username: &str,
-    password: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let session_id = request_session().await?;
-    login(username, password, &session_id).await?;
-    Ok(session_id)
-}

@@ -14,7 +14,7 @@ pub struct Colle {
     pub start_hour: String, // Format: HH:MM
     pub end_hour: String,   // Format: HH:MM
     pub subject: String,
-    pub is_assigned: bool,  // TODO: Parse from HTML
+    pub is_assigned: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -29,17 +29,17 @@ fn mondays_in_range(start_date: &str, end_date: &str) -> Result<Vec<String>, Box
         .map_err(|e| format!("Invalid start_date format: {}", e))?;
     let end = NaiveDate::parse_from_str(end_date, "%Y-%m-%d")
         .map_err(|e| format!("Invalid end_date format: {}", e))?;
-    
+
     let mut mondays = Vec::new();
     let mut current = start;
-    
+
     while current <= end {
         if current.weekday() == chrono::Weekday::Mon {
             mondays.push(current.format("%d/%m").to_string());
         }
         current = current.succ_opt().ok_or("Date overflow")?;
     }
-    
+
     Ok(mondays)
 }
 
@@ -100,17 +100,39 @@ pub async fn fetch_colles(
     // Parse HTML
     let document = Html::parse_document(&html_content);
 
-    // Select the main table
+    // Selectors
     let table_selector = Selector::parse(r#"table[style="width:100%"]"#)
         .map_err(|e| format!("Invalid table selector: {:?}", e))?;
+    let tr_selector = Selector::parse("tr").unwrap();
     let td_selector = Selector::parse("td").unwrap();
     let input_selector = Selector::parse("input.submit_plus").unwrap();
+    // Presence of this span means the slot has NO assigned students (i.e. not yet assigned)
+    let avertissement_selector = Selector::parse("span.avertissement").unwrap();
+
+    // Compiled regexes (once, outside the loop)
     let duration_regex = Regex::new(r"\((\d+)\s*min\)").unwrap();
+    // Matches "à HH h MM" anywhere
+    let time_regex = Regex::new(r"à\s*(\d{1,2})\s*h\s*(\d{2})").unwrap();
+    // Matches "Tirage à HH h MM" (case-insensitive)
+    let tirage_regex = Regex::new(r"(?i)tirage\s+à\s*(\d{1,2})\s*h\s*(\d{2})").unwrap();
+    // Strips "/ Tirage à HH h MM", "Tirage", "anticipé" and surrounding separators
+    let subject_cleanup_regex =
+        Regex::new(r"(?i)\s*/?\s*tirage(\s+à\s*\d{1,2}\s*h\s*\d{2})?\s*|\s*anticip[eé]e?\s*")
+            .unwrap();
 
     let mut colles = Vec::new();
 
     for table in document.select(&table_selector) {
-        for cell in table.select(&td_selector) {
+        for row in table.select(&tr_selector) {
+            // ---- is_assigned: true when span.avertissement is ABSENT from the row ----
+            let is_assigned = row.select(&avertissement_selector).next().is_none();
+
+            // All parsing is done on the first <td> of the row
+            let cell = match row.select(&td_selector).next() {
+                Some(c) => c,
+                None => continue,
+            };
+
             let mut cell_text = cell.text().collect::<String>().trim().to_string();
 
             // Normalize non-breaking spaces
@@ -120,7 +142,6 @@ pub async fn fetch_colles(
             // Example: "Mercredi 12 novembre 2025"
             let mut current_date = String::new();
             if let Some(pos_a) = cell_text.find('à') {
-                // Text before "à" likely contains the date
                 let before_time = cell_text[..pos_a].trim();
                 let parts: Vec<&str> = before_time.split_whitespace().collect();
                 if parts.len() >= 4 {
@@ -136,79 +157,104 @@ pub async fn fetch_colles(
             }
 
             // ---- Parse the time ----
-            // Example: "à 17 h 00 (60 min)"
-            let (start_hour, end_hour) = if let Some(pos_a) = cell_text.find('à') {
-                let time_part = &cell_text[pos_a..];
-                if let Some(paren_pos) = time_part.find('(') {
-                    let main_time = time_part[..paren_pos].trim(); // "à 17 h 00"
-                    let duration_part = &time_part[paren_pos..]; // "(60 min)"
+            //
+            // Case A — with "Tirage":
+            //   "Jeudi 21 mai 2026 à 15 h 00 (30 min) / Tirage à 14 h 30Français..."
+            //   • The first "à HH h MM" before "(" is the COLLE time (15h00)
+            //   • "Tirage à HH h MM" is the START time (14h30)
+            //   • end = colle time + duration = 15h00 + 30min = 15h30
+            //
+            // Case B — without "Tirage":
+            //   "Mercredi 20 mai 2026 à 15 h 40 (40 min) Mathématiques..."
+            //   • The first "à HH h MM" before "(" is the START time (15h40)
+            //   • end = start + duration = 15h40 + 40min = 16h20
 
-                    // Extract numbers from "à 17 h 00"
-                    let digits: Vec<u32> = main_time
-                        .split(|c: char| !c.is_ascii_digit())
-                        .filter_map(|s| s.parse::<u32>().ok())
-                        .collect();
-
-                    let hour = *digits.get(0).unwrap_or(&0);
-                    let minute = *digits.get(1).unwrap_or(&0);
-
-                    // Extract duration from "(60 min)"
-                    let duration: u32 = duration_regex
-                        .captures(&duration_part)
-                        .and_then(|caps| caps.get(1))
-                        .and_then(|m| m.as_str().parse::<u32>().ok())
-                        .unwrap_or(0);
-
-                    let start = format!("{:02}:{:02}", hour, minute);
-
-                    // Compute end time
-                    let total_minutes = hour * 60 + minute + duration;
-                    let end_hour_val = total_minutes / 60;
-                    let end_minute_val = total_minutes % 60;
-                    let end = format!("{:02}:{:02}", end_hour_val, end_minute_val);
-
-                    (start, end)
-                } else {
-                    continue;
-                }
-            } else {
-                continue;
+            // Locate the opening parenthesis to split colle-time from duration
+            let paren_pos = match cell_text.find('(') {
+                Some(p) => p,
+                None => continue,
             };
 
-            // ---- Parse subject and teacher ----
-            // Example: "Physique-Chimie : M. LAFITTE Salle : ND 007 - NOTRE-DAME - RDC"
-            let (subject, teacher) = if let Some(colon_pos) = cell_text.find(':') {
-                // Split subject / teacher part
-                let after_colon = &cell_text[colon_pos + 1..];
-                if let Some(salle_pos) = after_colon.find("Salle") {
-                    let subject_part = cell_text[..colon_pos].trim().to_string();
-                    // Keep only last word
-                    let subject = subject_part
-                        .split_whitespace()
-                        .last()
-                        .unwrap_or(&subject_part)
-                        .to_string();
-                    // If subject starts with 00, remove it
-                    let subject = if subject.starts_with("00") {
-                        subject.trim_start_matches("00").to_string()
-                    } else {
-                        subject
-                    };
-                    let teacher_part = after_colon[..salle_pos].trim().to_string();
+            // Extract duration in minutes from "(XX min)"
+            let duration: u32 = duration_regex
+                .captures(&cell_text[paren_pos..])
+                .and_then(|caps| caps.get(1))
+                .and_then(|m| m.as_str().parse::<u32>().ok())
+                .unwrap_or(0);
 
-                    // Clean up teacher prefix (optional)
-                    let teacher_cleaned = teacher_part
-                        .replace(" :", "")
-                        .replace("  ", " ")
-                        .trim()
-                        .to_string();
+            // The first "à HH h MM" before "(" is always the colle time
+            let text_before_paren = &cell_text[..paren_pos];
+            let (colle_h, colle_m) = match time_regex.captures(text_before_paren) {
+                Some(caps) => (
+                    caps[1].parse::<u32>().unwrap_or(0),
+                    caps[2].parse::<u32>().unwrap_or(0),
+                ),
+                None => continue,
+            };
 
-                    (subject, teacher_cleaned)
+            // end is always colle_time + duration
+            let end_total = colle_h * 60 + colle_m + duration;
+            let end_h = end_total / 60;
+            let end_m = end_total % 60;
+
+            let (start_hour, end_hour) =
+                if let Some(tirage_caps) = tirage_regex.captures(&cell_text) {
+                    // Case A: start = Tirage time, end = colle time + duration
+                    let start_h: u32 = tirage_caps[1].parse().unwrap_or(0);
+                    let start_m: u32 = tirage_caps[2].parse().unwrap_or(0);
+                    (
+                        format!("{:02}:{:02}", start_h, start_m),
+                        format!("{:02}:{:02}", end_h, end_m),
+                    )
                 } else {
-                    continue;
-                }
-            } else {
-                continue;
+                    // Case B: start = colle time, end = colle time + duration
+                    (
+                        format!("{:02}:{:02}", colle_h, colle_m),
+                        format!("{:02}:{:02}", end_h, end_m),
+                    )
+                };
+
+            // ---- Parse subject and teacher ----
+            // After the closing ")" of the duration, the remaining text is:
+            //   " / Tirage à 14 h 30Anglais LV1 : M. VANDOMME Salle : ..."
+            //   " Mathématiques : M. NOUGAYREDES Salle : ..."
+            // Find the closing ")" then look for the first ":" after it.
+            // Everything between them is the raw subject; everything up to "Salle" is the teacher.
+            let close_paren_pos = cell_text[paren_pos..].find(')').map(|p| paren_pos + p + 1);
+            let (subject, teacher) = {
+                let after_paren = match close_paren_pos {
+                    Some(p) => p,
+                    None => continue,
+                };
+                let rest = &cell_text[after_paren..];
+                let colon_pos = match rest.find(':') {
+                    Some(p) => p,
+                    None => continue,
+                };
+                let after_colon = &rest[colon_pos + 1..];
+                let salle_pos = match after_colon.find("Salle") {
+                    Some(p) => p,
+                    None => continue,
+                };
+
+                // Subject: text before ":" in `rest`, stripped of "/ Tirage à HH h MM" fragments
+                let subject_raw = rest[..colon_pos].trim().to_string();
+                let subject_raw = subject_cleanup_regex
+                    .replace_all(&subject_raw, "")
+                    .trim()
+                    .to_string();
+                // Strip any leftover leading "/" separator
+                let subject = subject_raw.trim_start_matches('/').trim().to_string();
+
+                // Teacher: text between ":" and "Salle"
+                let teacher_part = after_colon[..salle_pos].trim().to_string();
+                let teacher_cleaned = teacher_part
+                    .replace(" :", "")
+                    .replace("  ", " ")
+                    .trim()
+                    .to_string();
+
+                (subject, teacher_cleaned)
             };
 
             // Extract the COCHER_XX value if present
@@ -225,7 +271,7 @@ pub async fn fetch_colles(
                 start_hour,
                 end_hour,
                 subject,
-                is_assigned: false, // TODO: Parse from HTML
+                is_assigned,
             });
         }
     }
@@ -265,19 +311,19 @@ pub async fn fetch_future_colles(
     // Generate all Mondays in the date range
     let mondays = mondays_in_range(start_date, end_date)
         .map_err(|e| format!("Failed to generate date range: {}", e))?;
-    
+
     if mondays.is_empty() {
         return Err("No Mondays found in the specified date range".to_string());
     }
-    
+
     let monday_count = mondays.len();
     println!("Fetching colles for {} weeks: {:?}", monday_count, mondays);
-    
+
     // Fetch colles for each Monday
     let mut all_colles = Vec::new();
     let mut last_url = String::new();
     let mut seen_ids = HashSet::new();
-    
+
     for monday in mondays {
         match fetch_colles(&monday, cookie).await {
             Ok(response) => {
@@ -287,20 +333,22 @@ pub async fn fetch_future_colles(
                     if !colle.id.is_empty() && seen_ids.insert(colle.id.clone()) {
                         all_colles.push(colle);
                     } else if colle.id.is_empty() {
-                        // If no ID, add anyway (shouldn't happen but be safe)
                         all_colles.push(colle);
                     }
                 }
             }
             Err(e) => {
                 eprintln!("Warning: Failed to fetch colles for {}: {}", monday, e);
-                // Continue with other weeks
             }
         }
     }
-    
-    println!("Fetched {} unique colles across {} weeks", all_colles.len(), monday_count);
-    
+
+    println!(
+        "Fetched {} unique colles across {} weeks",
+        all_colles.len(),
+        monday_count
+    );
+
     Ok(FutureCollesResponse {
         colles: all_colles,
         url: last_url,
