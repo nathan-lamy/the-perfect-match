@@ -63,3 +63,9 @@ export function parseISODate(s: string): Date | undefined {
 export function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+// Return YYYYMMDD
+export function formatDate(ds: string): string {
+  const d = parseISODate(ds)!;
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+}

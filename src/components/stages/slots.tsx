@@ -36,16 +36,14 @@ export function SlotsStage() {
     );
 
     try {
-      // TODO: Use URL to publish fetched slots for debugging and reproducibility
-      const { colles: slots, url } = (await invoke("fetch_future_colles", {
+      const { colles: slots } = (await invoke("fetch_future_colles", {
         cookie: state.session!,
         startDate: state.dateRange.start,
         endDate: state.dateRange.end,
-      })) as { colles: typeof state.fetchedSlots; url: string };
+      })) as { colles: typeof state.fetchedSlots };
       setState({
         fetchedSlots: slots,
         selectedSlotIds: slots.filter((s) => !s.is_assigned).map((s) => s.id),
-        originUrl: url,
       });
       log("success", `${slots.length} slots fetched`);
       setError(null);

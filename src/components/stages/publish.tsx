@@ -10,7 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,13 +38,12 @@ export function PublishStage() {
     setErrors([]);
     setPublishProgress({
       total: allAssignments.length,
-      done: 0,
+      done: [],
       current: null,
       running: true,
     });
     log("info", `Publishing ${allAssignments.length} assignments to BJColle…`);
 
-    // Subscribe before invoking so no events are missed
     const unlisten = await listen<ColleProgressEvent>(
       "colle-progress",
       ({ payload }) => {
@@ -60,18 +59,18 @@ export function PublishStage() {
         } else {
           log(
             "info",
-            `Published ${payload.slot_id} (${payload.done}/${payload.total})`,
+            `Published ${payload.slot_id} (${payload.done.length}/${payload.total})`,
           );
         }
 
         setPublishProgress({
           total: payload.total,
           done: payload.done,
-          current: payload.done < payload.total ? payload.slot_id : null,
-          running: payload.done < payload.total,
+          current: payload.done.length < payload.total ? payload.slot_id : null,
+          running: payload.done.length < payload.total,
         });
 
-        if (payload.done === payload.total) {
+        if (payload.done.length === payload.total) {
           log("success", "Publish complete");
           toast.success("Published to BJColle");
         }
@@ -82,39 +81,51 @@ export function PublishStage() {
       await invoke("publish_colles", {
         assignments: allAssignments,
         cookie: state.session!,
-        origin: state.originUrl,
+        date: formatDate(state.dateRange.start),
       });
     } finally {
-      unlisten(); // Always clean up the listener
+      unlisten();
     }
   };
 
   const nuke = async () => {
-    const slotIds = [...new Set(allAssignments.map((a) => a.slot_id))];
-    if (slotIds.length === 0) return;
-
     log(
       "warn",
-      `Deleting all assignments on BJColle… (${slotIds.length} slots)`,
+      `Deleting all assignments on BJColle… for date ${state.dateRange.start} (this cannot be undone)`,
+    );
+
+    let toastId: string | number | undefined;
+
+    const unlisten = await listen<ColleProgressEvent>(
+      "nuke-progress",
+      ({ payload }) => {
+        const msg = `Deleting assignments… ${payload.done.length}/${payload.total}`;
+        if (toastId === undefined) {
+          toastId = toast.loading(msg);
+        } else {
+          toast.loading(msg, { id: toastId });
+        }
+      },
     );
 
     try {
       await invoke("clear_colles", {
-        slotIds,
         cookie: state.session!,
-        origin: state.originUrl,
+        date: formatDate(state.dateRange.start),
       });
+      toast.success("All assignments deleted", { id: toastId });
       log("success", "All assignments deleted");
-      toast.success("All assignments deleted");
     } catch (e) {
+      toast.error("Failed to delete assignments", { id: toastId });
       log("error", `Failed to delete assignments: ${e}`);
-      toast.error("Failed to delete assignments");
+    } finally {
+      unlisten();
     }
   };
 
   const pct =
     publishProgress.total > 0
-      ? (publishProgress.done / publishProgress.total) * 100
+      ? (publishProgress.done.length / publishProgress.total) * 100
       : 0;
 
   return (
@@ -190,7 +201,7 @@ export function PublishStage() {
               </Button>
             </div>
 
-            {(publishProgress.running || publishProgress.done > 0) && (
+            {(publishProgress.running || publishProgress.done.length > 0) && (
               <div className="mt-6">
                 <div className="mb-2 flex items-center justify-between font-mono text-[11px]">
                   <span className="text-muted-foreground">
@@ -199,7 +210,7 @@ export function PublishStage() {
                       : "complete"}
                   </span>
                   <span className="text-foreground">
-                    {publishProgress.done}/{publishProgress.total}
+                    {publishProgress.done.length}/{publishProgress.total}
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-surface-2">
@@ -219,9 +230,9 @@ export function PublishStage() {
             <div className="max-h-96 divide-y divide-border/40 overflow-y-auto scrollbar-thin">
               {allAssignments.map((a, i) => {
                 const done =
-                  publishProgress.done > i ||
+                  publishProgress.done.includes(a.slot_id) ||
                   (!publishProgress.running &&
-                    publishProgress.done === publishProgress.total &&
+                    publishProgress.done.length === publishProgress.total &&
                     publishProgress.total > 0);
                 const current = publishProgress.current === a.slot_id;
                 const error = errors.find((e) => e.slotId === a.slot_id);

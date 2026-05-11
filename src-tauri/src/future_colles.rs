@@ -105,7 +105,7 @@ pub async fn fetch_colles(
         .map_err(|e| format!("Invalid table selector: {:?}", e))?;
     let tr_selector = Selector::parse("tr").unwrap();
     let td_selector = Selector::parse("td").unwrap();
-    let input_selector = Selector::parse("input.submit_plus").unwrap();
+    // let input_selector = Selector::parse("input.submit_plus").unwrap();
     // Presence of this span means the slot has NO assigned students (i.e. not yet assigned)
     let avertissement_selector = Selector::parse("span.avertissement").unwrap();
 
@@ -257,15 +257,11 @@ pub async fn fetch_colles(
                 (subject, teacher_cleaned)
             };
 
-            // Extract the COCHER_XX value if present
-            let cocher_name = cell
-                .select(&input_selector)
-                .filter_map(|input| input.value().attr("name"))
-                .find(|n| n.starts_with("COCHER_"))
-                .map(|s| s.to_string());
+            // Extract the tr[id] value if present
+            let cocher_name = cell.attr("id").unwrap_or("").to_string();
 
             colles.push(Colle {
-                id: cocher_name.unwrap_or_default(),
+                id: cocher_name,
                 teacher,
                 date: current_date.clone(),
                 start_hour,

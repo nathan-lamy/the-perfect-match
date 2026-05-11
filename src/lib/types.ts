@@ -112,7 +112,7 @@ export const DEFAULT_WEIGHTS: Weights = {
 
 export interface ColleProgressEvent {
   slot_id: string;
-  done: number;
+  done: string[];
   total: number;
   error: string | null;
 }

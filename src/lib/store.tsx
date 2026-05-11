@@ -41,7 +41,6 @@ export interface PersistState {
   restrictions: Restriction[];
   groups: Group[];
   fetchedSlots: Slot[];
-  originUrl: string;
   selectedSlotIds: string[];
   globalRules: SlotRule[];
   passes: AssignmentPass[];
@@ -65,7 +64,6 @@ const initial: PersistState = {
   restrictions: [],
   groups: [],
   fetchedSlots: [],
-  originUrl: "",
   selectedSlotIds: [],
 
   globalRules: [
@@ -132,7 +130,7 @@ interface StoreContextValue {
   result: ComputeResult | null;
   setResult: (r: ComputeResult | null) => void;
 
-  publishProgress: { total: number; done: number; current: string | null; running: boolean };
+  publishProgress: { total: number; done: string[]; current: string | null; running: boolean };
   setPublishProgress: (p: StoreContextValue["publishProgress"]) => void;
 }
 
@@ -166,7 +164,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [stage, setStage] = useState<Stage>("connect");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [result, setResult] = useState<ComputeResult | null>(null);
-  const [publishProgress, setPublishProgress] = useState({ total: 0, done: 0, current: null as string | null, running: false });
+  const [publishProgress, setPublishProgress] = useState({ total: 0, done: [] as string[], current: null as string | null, running: false });
   // const firstRender = useRef(true);
 
   useEffect(() => {
