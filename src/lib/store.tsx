@@ -207,10 +207,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(
       STORAGE_KEY + "_weights",
       JSON.stringify(globalWeights),
     );
