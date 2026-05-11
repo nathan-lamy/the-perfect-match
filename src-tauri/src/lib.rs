@@ -44,7 +44,7 @@ async fn compute_assignment(
     students: Vec<Student>,
     slots: Vec<Slot>,
     restrictions: Vec<Restriction>,
-    past_colles: Vec<PastColle>,
+    past_colles: Vec<LastWeekColle>,
     colles_count: Vec<CollesCount>,
     global_rules: Vec<SlotRule>,
     global_weights: Weights,

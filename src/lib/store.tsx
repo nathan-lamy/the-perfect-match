@@ -1,9 +1,18 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type {
   AssignmentPass,
   ComputeResult,
   Group,
   historicalCounts,
+  LastWeekColle,
   Restriction,
   Slot,
   SlotRule,
@@ -18,6 +27,7 @@ export type Stage =
   | "restrictions"
   | "groups"
   | "slots"
+  | "lastWeek"
   | "rules"
   | "passes"
   | "quotas"
@@ -48,13 +58,16 @@ export interface PersistState {
   // quotas: SubjectQuota[];
   iterations: number;
   dateRange: { start: string; end: string };
+
+  lastWeekDate: string | null;
+  lastWeekColles: LastWeekColle[];
 }
 
 export const SESSION_EXPIRY = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY = "theperfectmatch_v1";
 
 const today = new Date();
-const in14 = new Date(today.getTime() + 7 * 86400000);
+const in7 = new Date(today.getTime() + 7 * 86400000);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 const initial: PersistState = {
@@ -113,13 +126,18 @@ const initial: PersistState = {
   //   },
   // ],
   iterations: 100,
-  dateRange: { start: iso(today), end: iso(in14) },
+  dateRange: { start: iso(today), end: iso(in7) },
+
+  lastWeekDate: null,
+  lastWeekColles: [],
 };
 
 interface StoreContextValue {
   hydrated: boolean;
   state: PersistState;
-  setState: (patch: Partial<PersistState> | ((s: PersistState) => Partial<PersistState>)) => void;
+  setState: (
+    patch: Partial<PersistState> | ((s: PersistState) => Partial<PersistState>),
+  ) => void;
   reset: () => void;
   globalWeights: typeof DEFAULT_WEIGHTS;
   setGlobalWeights: (w: typeof DEFAULT_WEIGHTS) => void;
@@ -133,7 +151,12 @@ interface StoreContextValue {
   result: ComputeResult | null;
   setResult: (r: ComputeResult | null) => void;
 
-  publishProgress: { total: number; done: string[]; current: string | null; running: boolean };
+  publishProgress: {
+    total: number;
+    done: string[];
+    current: string | null;
+    running: boolean;
+  };
   setPublishProgress: (p: StoreContextValue["publishProgress"]) => void;
 }
 
@@ -167,7 +190,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [stage, setStage] = useState<Stage>("connect");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [result, setResult] = useState<ComputeResult | null>(null);
-  const [publishProgress, setPublishProgress] = useState({ total: 0, done: [] as string[], current: null as string | null, running: false });
+  const [publishProgress, setPublishProgress] = useState({
+    total: 0,
+    done: [] as string[],
+    current: null as string | null,
+    running: false,
+  });
   // const firstRender = useRef(true);
 
   useEffect(() => {
@@ -183,7 +211,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY + "_weights", JSON.stringify(globalWeights));
+    localStorage.setItem(
+      STORAGE_KEY + "_weights",
+      JSON.stringify(globalWeights),
+    );
   }, [globalWeights, hydrated]);
 
   // // Auto-advance stage on first hydration
@@ -194,7 +225,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   //   else if (state.isConnected) setStage("students");
   // }, [hydrated, state.isConnected, state.students.length]);
 
-  const setState = (patch: Partial<PersistState> | ((s: PersistState) => Partial<PersistState>)) => {
+  const setState = (
+    patch: Partial<PersistState> | ((s: PersistState) => Partial<PersistState>),
+  ) => {
     setStateRaw((prev) => {
       const p = typeof patch === "function" ? patch(prev) : patch;
       return { ...prev, ...p };
@@ -220,16 +253,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreContextValue>(
     () => ({
       hydrated,
-      state, setState, reset,
-      globalWeights, setGlobalWeights: setGlobalWeightsRaw,
-      stage, setStage, logs, log,
-      result, setResult,
-      publishProgress, setPublishProgress,
+      state,
+      setState,
+      reset,
+      globalWeights,
+      setGlobalWeights: setGlobalWeightsRaw,
+      stage,
+      setStage,
+      logs,
+      log,
+      result,
+      setResult,
+      publishProgress,
+      setPublishProgress,
     }),
     [state, hydrated, globalWeights, stage, logs, result, publishProgress],
   );
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  );
 }
 
 export function useStore() {

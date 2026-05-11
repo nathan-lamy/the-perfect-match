@@ -103,7 +103,7 @@ export interface ComputeResult {
 }
 
 export const DEFAULT_WEIGHTS: Weights = {
-  last_week_penalty: 6_000, 
+  last_week_penalty: 6_000,
   same_day_penalty: 3,
   total_colles_weight: 1, // Scaled down to maintain ratio
   restriction_penalty: 12_000,
@@ -115,4 +115,11 @@ export interface ColleProgressEvent {
   done: string[];
   total: number;
   error: string | null;
+}
+
+export interface LastWeekColle {
+  id: number;
+  teacher: string;
+  subject: string;
+  student: string;
 }

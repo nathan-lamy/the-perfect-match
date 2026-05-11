@@ -44,8 +44,7 @@ export function ComputeStage() {
           state.selectedSlotIds.includes(s.id),
         ),
         restrictions: state.restrictions,
-        // TODO:
-        pastColles: [],
+        pastColles: state.lastWeekColles,
         collesCount: state.historicalCounts,
         globalRules: state.globalRules,
         globalWeights: globalWeights,

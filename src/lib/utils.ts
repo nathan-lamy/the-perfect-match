@@ -69,3 +69,10 @@ export function formatDate(ds: string): string {
   const d = parseISODate(ds)!;
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
+export function previousMondayISO(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? 13 : day + 6; // back to last week's Monday
+  d.setDate(d.getDate() - diff);
+  return toISO(d);
+}

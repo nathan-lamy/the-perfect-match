@@ -17,6 +17,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { Toaster } from "@/components/ui/sonner";
 import { Command, Sparkles } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { LastWeekStage } from "@/components/stages/last-week";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -229,6 +230,8 @@ function StageRoute({
       return <GroupsStage />;
     case "slots":
       return <SlotsStage />;
+    case "lastWeek":
+      return <LastWeekStage />;
     case "rules":
       return <RulesStage />;
     case "passes":

@@ -33,12 +33,6 @@ pub struct Restriction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PastColle {
-    pub name: String,
-    pub teachers: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Group {
     pub id: String,
     pub name: String,
@@ -56,6 +50,14 @@ pub struct CollesCount {
     pub counts: HistoricalCount,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LastWeekColle {
+    pub id: i32,
+    pub teacher: String,
+    pub subject: String,
+    pub student: String,
+}
+
 // ============= Slot Rules & Actions =============
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,8 +71,8 @@ pub enum SlotAction {
 pub struct SlotRule {
     pub id: String,
     pub name: String,
-    pub match_teacher: Option<String>,  // Exact match; None = match any
-    pub match_subject: Option<String>,  // Substring match; None = match any
+    pub match_teacher: Option<String>, // Exact match; None = match any
+    pub match_subject: Option<String>, // Substring match; None = match any
     pub action: SlotAction,
 }
 
@@ -91,13 +93,13 @@ pub struct Weights {
 pub struct AssignmentPass {
     pub id: String,
     pub name: String,
-    pub slot_subject_filter: String,    // Substring match on slot.subject
+    pub slot_subject_filter: String, // Substring match on slot.subject
     pub student_group_id: Option<String>, // None = all students
-    pub weights: Option<Weights>,       // None = use global weights
-    pub slot_rules: Vec<SlotRule>,      // Pass-level rules
-    pub ignored_slot_ids: Vec<String>,  // Manually excluded slots
+    pub weights: Option<Weights>,    // None = use global weights
+    pub slot_rules: Vec<SlotRule>,   // Pass-level rules
+    pub ignored_slot_ids: Vec<String>, // Manually excluded slots
     pub ignored_students: Vec<String>, // Manually excluded students
-    pub priority: u32,                  // Execution order (0 = first)
+    pub priority: u32,               // Execution order (0 = first)
 }
 
 // ============= Assignment Results =============

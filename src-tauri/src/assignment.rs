@@ -466,7 +466,7 @@ pub fn run_pipeline(
     students: &[Student],
     slots: &[Slot],
     restrictions: &[Restriction],
-    past_colles: &[PastColle],
+    past_colles: &[LastWeekColle],
     colles_count: &Vec<CollesCount>,
     global_rules: &[SlotRule],
     global_weights: &Weights,
@@ -476,10 +476,15 @@ pub fn run_pipeline(
 ) -> Option<Vec<PassResult>> {
     passes.sort_by_key(|p| p.priority);
 
-    let past_colles_map: HashMap<String, HashSet<String>> = past_colles
-        .iter()
-        .map(|pc| (pc.name.clone(), pc.teachers.iter().cloned().collect()))
-        .collect();
+    let past_colles_map: HashMap<String, HashSet<String>> = {
+        let mut map: HashMap<String, HashSet<String>> = HashMap::new();
+        for colle in past_colles {
+            map.entry(colle.student.clone())
+                .or_default()
+                .insert(colle.teacher.clone());
+        }
+        map
+    };
 
     let mut all_restrictions = restrictions.to_vec();
     let mut previous_assignments: HashMap<String, String> = HashMap::new();
@@ -578,7 +583,7 @@ pub fn compute_best_pipeline(
     students: Vec<Student>,
     slots: Vec<Slot>,
     restrictions: Vec<Restriction>,
-    past_colles: Vec<PastColle>,
+    past_colles: Vec<LastWeekColle>,
     colles_count: Vec<CollesCount>,
     global_rules: Vec<SlotRule>,
     global_weights: Weights,
