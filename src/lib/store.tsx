@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -207,6 +208,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(
       STORAGE_KEY + "_weights",
       JSON.stringify(globalWeights),
     );
@@ -220,22 +225,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   //   else if (state.isConnected) setStage("students");
   // }, [hydrated, state.isConnected, state.students.length]);
 
-  const setState = (
-    patch: Partial<PersistState> | ((s: PersistState) => Partial<PersistState>),
-  ) => {
-    setStateRaw((prev) => {
-      const p = typeof patch === "function" ? patch(prev) : patch;
-      return { ...prev, ...p };
-    });
-  };
+  const setState = useCallback(
+    (
+      patch:
+        | Partial<PersistState>
+        | ((s: PersistState) => Partial<PersistState>),
+    ) => {
+      setStateRaw((prev) => {
+        const p = typeof patch === "function" ? patch(prev) : patch;
+        return { ...prev, ...p };
+      });
+    },
+    [], // stable forever
+  );
 
-  const log = (level: LogEntry["level"], message: string) => {
+  const log = useCallback((level: LogEntry["level"], message: string) => {
     setLogs((l) => [...l, { ts: Date.now(), level, message }].slice(-200));
-    // eslint-disable-next-line no-console
     console.log(`[${level}]`, message);
-  };
+  }, []);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY + "_weights");
     setStateRaw(initial);
@@ -243,7 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setResult(null);
     setLogs([]);
     setStage("connect");
-  };
+  }, []);
 
   const value = useMemo<StoreContextValue>(
     () => ({

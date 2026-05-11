@@ -20,16 +20,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { LastWeekStage } from "@/components/stages/last-week";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "The Perfect Match" },
-      {
-        name: "description",
-        content:
-          "Weekly colle assignment tool: fetch slots, configure passes, run the optimizer, publish to BJColle.",
-      },
-    ],
-  }),
   component: Index,
 });
 
