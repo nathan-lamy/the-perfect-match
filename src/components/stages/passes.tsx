@@ -175,10 +175,26 @@ export function PassesStage() {
                   className="flex flex-1 items-center gap-2 text-left"
                 >
                   <span className="font-medium">{p.name}</span>
-                  <span className="font-mono text-[11px] text-muted-foreground">
-                    {p.slot_subject_filter || "all subjects"}
-                    {p.student_group_id &&
-                      ` · ${state.groups.find((g) => g.id === p.student_group_id)?.name ?? "group"}`}
+                  <span className="font-mono text-[11px] text-muted-foreground mt-1">
+                    {
+                      state.fetchedSlots.filter(
+                        (s) =>
+                          s.subject.includes(p.slot_subject_filter) &&
+                          !p.ignored_slot_ids.includes(s.id),
+                      ).length
+                    }{" "}
+                    slots ·{" "}
+                    {
+                      state.students.filter(
+                        (s) =>
+                          (state.groups
+                            .find((g) => g.id === p.student_group_id)
+                            ?.students.includes(s.name) ??
+                            true) &&
+                          !p.ignored_students.includes(s.name),
+                      ).length
+                    }{" "}
+                    students
                   </span>
                   {p.weights && (
                     <span className="rounded bg-warning/10 px-1.5 py-0.5 font-mono text-[10px] uppercase text-warning">
@@ -306,11 +322,16 @@ export function PassesStage() {
                   <ExclusionPicker
                     label="Manually exclude students"
                     items={state.students
-                      .filter((s) => state.groups.find((g) => g.id === p.student_group_id)?.students.includes(s.name) ?? true)
+                      .filter(
+                        (s) =>
+                          state.groups
+                            .find((g) => g.id === p.student_group_id)
+                            ?.students.includes(s.name) ?? true,
+                      )
                       .map((s) => ({
-                      id: s.name,
-                      label: s.name,
-                    }))}
+                        id: s.name,
+                        label: s.name,
+                      }))}
                     selected={p.ignored_students}
                     onChange={(ids) =>
                       updatePass(p.id, { ignored_students: ids })
@@ -322,9 +343,9 @@ export function PassesStage() {
                     items={state.fetchedSlots
                       .filter((s) => s.subject.includes(p.slot_subject_filter))
                       .map((s) => ({
-                      id: s.id,
-                      label: `${s.id} · ${s.teacher} · ${s.date} ${s.start_hour}`,
-                    }))}
+                        id: s.id,
+                        label: `${s.id} · ${s.teacher} · ${s.date} ${s.start_hour}`,
+                      }))}
                     selected={p.ignored_slot_ids}
                     onChange={(ids) =>
                       updatePass(p.id, { ignored_slot_ids: ids })

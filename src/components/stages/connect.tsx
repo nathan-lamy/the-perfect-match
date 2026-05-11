@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { SESSION_EXPIRY, useStore } from "@/lib/store";
 import { Panel, StageHeader } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ export function ConnectStage() {
         credentials: remember ? { username, password } : null,
         session,
         isConnected: true,
+        sessionExpiresAt: Date.now() + SESSION_EXPIRY,
       });
 
       log("success", "Connected to BJColle");

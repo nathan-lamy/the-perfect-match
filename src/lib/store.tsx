@@ -34,6 +34,7 @@ export interface PersistState {
   credentials: { username: string; password: string } | null;
   session?: string;
   isConnected: boolean;
+  sessionExpiresAt?: number;
 
   students: Student[];
   historicalCounts: historicalCounts[];
@@ -49,6 +50,7 @@ export interface PersistState {
   dateRange: { start: string; end: string };
 }
 
+export const SESSION_EXPIRY = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY = "theperfectmatch_v1";
 
 const today = new Date();
@@ -58,6 +60,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const initial: PersistState = {
   credentials: null,
   isConnected: false,
+  sessionExpiresAt: undefined,
 
   students: [],
   historicalCounts: [],

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { StoreProvider, useStore } from "@/lib/store";
+import { SESSION_EXPIRY, StoreProvider, useStore } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
 import { ConnectStage } from "@/components/stages/connect";
 import { StudentsStage } from "@/components/stages/students";
@@ -67,30 +67,41 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (state.session || !state.credentials) {
+    const hasValidSession =
+      state.session &&
+      state.sessionExpiresAt &&
+      state.sessionExpiresAt > Date.now();
+    const canAuthenticate = state.credentials && !hasValidSession;
+
+    if (!canAuthenticate) {
       if (!bootDone) setBootDone(true);
       return;
     }
 
-    if (!bootDone) {
-      log("info", "Restoring BJColle session…");
-      invoke("authenticate", {
-        username: state.credentials.username,
-        password: state.credentials.password,
+    log("info", "Restoring BJColle session…");
+
+    invoke("authenticate", {
+      username: state.credentials!.username,
+      password: state.credentials!.password,
+    })
+      .then((session) => {
+        setState((prev) => ({
+          ...prev,
+          session: session as string,
+          isConnected: true,
+          sessionExpiresAt: Date.now() + SESSION_EXPIRY,
+        }));
+        log("success", `Reconnected as ${state.credentials!.username}`);
       })
-        .then((session) => {
-          setState({ session: session as string, isConnected: true });
-          log("success", `Reconnected as ${state.credentials?.username}`);
-        })
-        .catch(() => {
-          log("error", "Failed to restore session");
-          setState({ isConnected: false });
-        })
-        .finally(() => {
-          if (!bootDone) setBootDone(true);
-        });
-    }
-  }, [state]);
+      .catch((err) => {
+        console.error("Failed to restore session", err);
+        log("error", "Failed to restore session");
+        setState((prev) => ({ ...prev, isConnected: false }));
+      })
+      .finally(() => {
+        if (!bootDone) setBootDone(true);
+      });
+  }, [state.session, state.sessionExpiresAt, state.credentials, bootDone]);
 
   if (!hydrated || !bootDone) {
     return (
